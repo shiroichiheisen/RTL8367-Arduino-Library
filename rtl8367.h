@@ -9,13 +9,12 @@ class rtl8367
 public:
     rtl8367(uint16_t);
 
-    void begin(uint8_t, uint8_t);
     void setTransmissionPins(uint8_t, uint8_t);
     void setTransmissionDelay(uint16_t);
 
-    int32_t rtk_switch_probe(uint8_t &);
+    int32_t probeIc(uint8_t &);
 
-    int32_t rtk_port_phyStatus_get(uint8_t, uint8_t &, uint8_t &, uint8_t &);
+    int32_t getPortStatus(uint8_t, uint8_t &, uint8_t &, uint8_t &);
 
 private:
     void _smi_start();
@@ -31,7 +30,7 @@ private:
     int32_t rtl8367c_getAsicPHYReg(uint32_t, uint32_t, uint32_t *);
     int32_t rtl8367c_getAsicPHYOCPReg(uint32_t, uint32_t, uint32_t *);
     int32_t rtl8367c_setAsicRegBits(uint32_t, uint32_t, uint32_t);
-    
+
     uint16_t
         usTransmissionDelay;
 
@@ -94,37 +93,6 @@ private:
         INIT_COMPLETED,
         INIT_STATE_END
     } init_state_t;
-
-    typedef enum port_type_e
-    {
-        UTP_PORT = 0,
-        EXT_PORT,
-        UNKNOWN_PORT = 0xFF,
-        PORT_TYPE_END
-    } port_type_t;
-
-    typedef struct rtk_switch_halCtrl_s
-    {
-        uint8_t switch_type;
-        uint32_t l2p_port[RTK_SWITCH_PORT_NUM];
-        uint32_t p2l_port[RTK_SWITCH_PORT_NUM];
-        port_type_t log_port_type[RTK_SWITCH_PORT_NUM];
-        uint32_t ptp_port[RTK_SWITCH_PORT_NUM];
-        uint32_t valid_portmask;
-        uint32_t valid_utp_portmask;
-        uint32_t valid_ext_portmask;
-        uint32_t valid_cpu_portmask;
-        uint32_t min_phy_port;
-        uint32_t max_phy_port;
-        uint32_t phy_portmask;
-        uint32_t combo_logical_port;
-        uint32_t hsg_logical_port;
-        uint32_t sg_logical_portmask;
-        uint32_t max_meter_id;
-        uint32_t max_lut_addr_num;
-        uint32_t trunk_group_mask;
-
-    } rtk_switch_halCtrl_t;
 
     typedef enum rtk_port_e
     {

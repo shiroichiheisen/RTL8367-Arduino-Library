@@ -6,16 +6,7 @@ rtl8367::rtl8367(uint16_t usTransmissionDelay)
     this->usTransmissionDelay = usTransmissionDelay;
 }
 
-void rtl8367::begin(uint8_t sdaPin, uint8_t sckPin)
-{
-    this->sdaPin = sdaPin;
-    this->sckPin = sckPin;
-
-    pinMode(sdaPin, OUTPUT);
-    pinMode(sckPin, OUTPUT);
-}
-
-void rtl8367::setTransmissionPins(uint8_t sdaPin, uint8_t sckPin)
+void rtl8367::setTransmissionPins(uint8_t sckPin, uint8_t sdaPin)
 {
     this->sdaPin = sdaPin;
     this->sckPin = sckPin;
@@ -43,7 +34,7 @@ void rtl8367::setTransmissionDelay(uint16_t usTransmissionDelay)
  * Note:
  *
  */
-int32_t rtl8367::rtk_switch_probe(uint8_t &pSwitchChip)
+int32_t rtl8367::probeIc(uint8_t &pSwitchChip)
 {
     uint32_t retVal;
     uint32_t data, regValue;
@@ -315,7 +306,7 @@ int32_t rtl8367::rtl8367c_getAsicPHYReg(uint32_t phyNo, uint32_t phyAddr, uint32
  * Note:
  *      API will return auto negotiation status of phy.
  */
-int32_t rtl8367::rtk_port_phyStatus_get(uint8_t port, uint8_t &pLinkStatus, uint8_t &pSpeed, uint8_t &pDuplex)
+int32_t rtl8367::getPortStatus(uint8_t port, uint8_t &pLinkStatus, uint8_t &pSpeed, uint8_t &pDuplex)
 {
     int32_t retVal;
     uint32_t phyData;
