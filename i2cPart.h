@@ -372,4 +372,36 @@ int32_t rtl8367::rtl8367c_setAsicRegBit(uint32_t reg, uint32_t bit, uint32_t val
 
     return RT_ERR_OK;
 }
+
+/* Function Name:
+ *      rtl8367c_getAsicRegBit
+ * Description:
+ *      Get a bit value of a specified register
+ * Input:
+ *      reg     - register's address
+ *      bit     - bit location
+ *      value   - value to get.
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK       - Success
+ *      RT_ERR_SMI      - SMI access error
+ *      RT_ERR_INPUT    - Invalid input parameter
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_getAsicRegBit(uint32_t reg, uint32_t bit, uint32_t *pValue)
+{
+    uint32_t regData;
+    int32_t retVal;
+
+    retVal = smi_read(reg, &regData);
+    if (retVal != RT_ERR_OK)
+        return RT_ERR_SMI;
+
+    *pValue = (regData & (0x1 << bit)) >> bit;
+
+    return RT_ERR_OK;
+}
+
 #endif

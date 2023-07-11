@@ -12,11 +12,53 @@ public:
     void setTransmissionPins(uint8_t, uint8_t);
     void setTransmissionDelay(uint16_t);
 
-    int32_t probeIc(uint8_t &);
+    int32_t rtk_switch_probe(uint8_t &);
 
     int32_t getPortStatus(uint8_t, uint8_t &, uint8_t &, uint8_t &);
 
-    int32_t init_vlan();
+    int32_t rtk_svlan_init();
+
+#define RTK_TOTAL_NUM_OF_WORD_FOR_1BIT_PORT_LIST 1
+    typedef struct rtk_portmask_s
+    {
+        uint32_t bits[RTK_TOTAL_NUM_OF_WORD_FOR_1BIT_PORT_LIST];
+    } rtk_portmask_t;
+
+    typedef struct rtk_vlan_cfg_s
+    {
+        rtk_portmask_t mbr;
+        rtk_portmask_t untag;
+        uint16_t ivl_en;
+        uint16_t fid_msti;
+        uint16_t envlanpol;
+        uint16_t meteridx;
+        uint16_t vbpen;
+        uint16_t vbpri;
+    } rtk_vlan_cfg_t;
+
+    /* Function Name:
+     *      rtk_switch_maxMeterId_get
+     * Description:
+     *      Get Max Meter ID
+     * Input:
+     *      None
+     * Output:
+     *      None
+     * Return:
+     *      0x00                - Not Initialize
+     *      Other value         - Max Meter ID
+     * Note:
+     *
+     */
+    uint32_t rtk_switch_maxMeterId_get()
+    {
+        return (halCtrl.max_meter_id);
+    }
+
+#define RTK_MAX_METER_ID (rtk_switch_maxMeterId_get())
+
+    int32_t rtk_vlan_set(uint32_t vid, rtk_vlan_cfg_t *pVlanCfg);
+    int32_t _rtk_vlan_get(uint32_t vid, rtk_vlan_cfg_t *pVlanCfg);
 
 private:
 #define RTL8367C_REGBITLENGTH 16
@@ -72,6 +114,39 @@ private:
     for (__port__ = 0; __port__ < RTK_SWITCH_PORT_NUM; __port__++) \
         if ((rtk_switch_phyPortMask_get() & (0x00000001 << __port__)))
 
+    /* Function Name:
+     *      rtk_switch_isPortMaskValid
+     * Description:
+     *      Check portmask is valid or not
+     * Input:
+     *      pPmask       - logical port mask
+     * Output:
+     *      None
+     * Return:
+     *      RT_ERR_OK           - port mask is valid
+     *      RT_ERR_FAILED       - port mask is not valid
+     *      RT_ERR_NOT_INIT     - Not Initialize
+     *      RT_ERR_NULL_POINTER - Null pointer
+     * Note:
+     *
+     */
+    int32_t rtk_switch_isPortMaskValid(rtk_portmask_t *pPmask)
+    {
+        if ((pPmask->bits[0] | halCtrl.valid_portmask) != halCtrl.valid_portmask)
+            return RT_ERR_FAILED;
+        else
+            return RT_ERR_OK;
+    }
+
+#define RTK_CHK_PORTMASK_VALID(__portmask__)                       \
+    do                                                             \
+    {                                                              \
+        if (rtk_switch_isPortMaskValid(__portmask__) != RT_ERR_OK) \
+        {                                                          \
+            return RT_ERR_PORT_MASK;                               \
+        }                                                          \
+    } while (0)
+
 #define RTL8367C_PORTNO 11
 #define RTL8367C_PORTIDMAX (RTL8367C_PORTNO - 1)
 
@@ -87,21 +162,7 @@ private:
 
 #define RTL8367C_METERNO 64
 #define RTL8367C_METERMAX (RTL8367C_METERNO - 1)
-
-    void _smi_start();
-    void _smi_writeBit(uint16_t, uint32_t);
-    void _smi_readBit(uint32_t, uint32_t *);
-    void _smi_stop();
-    int32_t smi_read(uint32_t, uint32_t *);
-    int32_t smi_write(uint32_t, uint32_t);
-    int32_t rtl8367c_setAsicReg(uint32_t, uint32_t);
-    int32_t rtl8367c_getAsicReg(uint32_t, uint32_t *);
-    int32_t rtk_switch_isUtpPort(uint8_t);
-    uint32_t rtk_switch_port_L2P_get(uint8_t);
-    int32_t rtl8367c_getAsicPHYReg(uint32_t, uint32_t, uint32_t *);
-    int32_t rtl8367c_getAsicPHYOCPReg(uint32_t, uint32_t, uint32_t *);
-    int32_t rtl8367c_setAsicRegBits(uint32_t, uint32_t, uint32_t);
-    int32_t rtl8367c_setAsicRegBit(uint32_t, uint32_t, uint32_t);
+#define RTL8367C_TABLE_ACCESS_RDDATA_BASE RTL8367C_REG_TABLE_READ_DATA0
 
     typedef struct VLANCONFIGUSER
     {
@@ -177,14 +238,15 @@ private:
         RTK_ENABLE_END
     } rtk_enable_t;
 
-    int32_t rtl8367c_setAsicVlanMemberConfig(uint32_t, rtl8367c_vlanconfiguser *);
-    void _rtl8367c_VlanMCStUser2Smi(rtl8367c_vlanconfiguser *, uint16_t *);
-    int32_t rtl8367c_setAsicVlan4kEntry(rtl8367c_user_vlan4kentry *);
-    void _rtl8367c_Vlan4kStUser2Smi(rtl8367c_user_vlan4kentry *, uint16_t *);
-    int32_t rtl8367c_setAsicVlanPortBasedVID(uint32_t, uint32_t, uint32_t);
-    int32_t rtl8367c_setAsicVlanEgressTagMode(uint32_t port, rtl8367c_egtagmode tagMode);
-    int32_t rtl8367c_setAsicVlanIngressFilter(uint32_t port, uint32_t enabled);
-    int32_t rtl8367c_setAsicVlanFilter(uint32_t enabled);
+#define RTK_PORTMASK_IS_PORT_SET(__portmask__, __port__) (((__portmask__).bits[0] & (0x00000001 << __port__)) ? 1 : 0)
+
+#define RTK_PORTMASK_SCAN(__portmask__, __port__)                  \
+    for (__port__ = 0; __port__ < RTK_SWITCH_PORT_NUM; __port__++) \
+        if (RTK_PORTMASK_IS_PORT_SET(__portmask__, __port__))
+
+#define RTL8367C_VLAN_BUSY_CHECK_NO (10)
+#define RTL8367C_TABLE_ACCESS_STATUS_REG RTL8367C_REG_TABLE_LUT_ADDR
+#define RTK_PORTMASK_CLEAR(__portmask__) ((__portmask__).bits[0] = 0)
 
     typedef enum port_type_e
     {
@@ -329,5 +391,59 @@ private:
 
             /* Trunk Group Mask */
             0x03};
+
+    void _smi_start();
+    void _smi_writeBit(uint16_t, uint32_t);
+    void _smi_readBit(uint32_t, uint32_t *);
+    void _smi_stop();
+    int32_t smi_read(uint32_t, uint32_t *);
+    int32_t smi_write(uint32_t, uint32_t);
+    int32_t rtl8367c_setAsicReg(uint32_t, uint32_t);
+    int32_t rtl8367c_getAsicReg(uint32_t, uint32_t *);
+    int32_t rtk_switch_isUtpPort(uint8_t);
+    uint32_t rtk_switch_port_L2P_get(uint8_t);
+    int32_t rtl8367c_getAsicPHYReg(uint32_t, uint32_t, uint32_t *);
+    int32_t rtl8367c_getAsicPHYOCPReg(uint32_t, uint32_t, uint32_t *);
+    int32_t rtl8367c_setAsicRegBits(uint32_t, uint32_t, uint32_t);
+    int32_t rtl8367c_setAsicRegBit(uint32_t, uint32_t, uint32_t);
+    int32_t rtl8367c_getAsicRegBit(uint32_t, uint32_t, uint32_t *);
+
+    /* Function Name:
+     *      rtk_switch_port_P2L_get
+     * Description:
+     *      Get logical port ID
+     * Input:
+     *      physicalPort       - physical port ID
+     * Output:
+     *      None
+     * Return:
+     *      logical port ID
+     * Note:
+     *
+     */
+    uint32_t rtk_switch_port_P2L_get(uint32_t physicalPort)
+    {
+        if (physicalPort >= RTK_SWITCH_PORT_NUM)
+            return UNDEFINE_PORT;
+
+        return (halCtrl.p2l_port[physicalPort]);
+    }
+
+#define RTK_PORTMASK_PORT_SET(__portmask__, __port__) ((__portmask__).bits[0] |= (0x00000001 << __port__))
+
+    int32_t rtl8367c_setAsicVlanMemberConfig(uint32_t, rtl8367c_vlanconfiguser *);
+    void _rtl8367c_VlanMCStUser2Smi(rtl8367c_vlanconfiguser *, uint16_t *);
+    int32_t rtl8367c_setAsicVlan4kEntry(rtl8367c_user_vlan4kentry *);
+    void _rtl8367c_Vlan4kStUser2Smi(rtl8367c_user_vlan4kentry *, uint16_t *);
+    int32_t rtl8367c_setAsicVlanPortBasedVID(uint32_t, uint32_t, uint32_t);
+    int32_t rtl8367c_setAsicVlanEgressTagMode(uint32_t, rtl8367c_egtagmode);
+    int32_t rtl8367c_setAsicVlanIngressFilter(uint32_t, uint32_t);
+    int32_t rtl8367c_setAsicVlanFilter(uint32_t);
+    int32_t rtk_switch_portmask_L2P_get(rtk_portmask_t *, uint32_t *);
+    int32_t rtl8367c_getAsicVlan4kEntry(rtl8367c_user_vlan4kentry *);
+    void _rtl8367c_Vlan4kStSmi2User(uint16_t *, rtl8367c_user_vlan4kentry *);
+    int32_t rtk_switch_portmask_P2L_get(uint32_t, rtk_portmask_t *);
+    int32_t rtl8367c_getAsicVlanMemberConfig(uint32_t, rtl8367c_vlanconfiguser *);
+    void _rtl8367c_VlanMCStSmi2User(uint16_t *, rtl8367c_vlanconfiguser *);
 };
 #endif

@@ -8,11 +8,15 @@ You need to wait 1 second after the switch is powered on to use the library, bec
 
 I only have the rtl8367s eeprom file using the 24c32, i dont have other rtl8367 eeprom files, so if you have other rtl8367 eeprom files, please send them to this repository.
 
-# Working:
+This library is based on the realteck original library, theres a programming guide from realtech on this library.
 
-- [x] Read the port status - getPortStatus
-- [x] Probe the ic to see if its connected - probeIc
-- [x] Init Vlan - init_vlan
+# Functions Added:
+
+- [x] Read the port status - getPortStatus - Workin
+- [x] Probe the ic to see if its connected - probeIc - Working
+- [x] Init Vlan - rtk_svlan_init - Working
+- [x] Set Vlan - rtk_svlan_set
+- [x] Get Vlan - rtk_svlan_get
 
 # tested on:
 
