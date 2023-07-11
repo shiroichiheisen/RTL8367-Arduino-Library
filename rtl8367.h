@@ -16,7 +16,78 @@ public:
 
     int32_t getPortStatus(uint8_t, uint8_t &, uint8_t &, uint8_t &);
 
+    int32_t init_vlan();
+
 private:
+#define RTL8367C_REGBITLENGTH 16
+#define RTL8367C_FIDMAX 0xF
+#define RTL8367C_EVIDMAX 0x1FFF
+#define RTL8367C_PORTMASK 0x7FF
+#define RTL8367C_VLAN_MBRCFG_LEN (4)
+#define RTL8367C_CVIDXNO 32
+#define RTL8367C_CVIDXMAX (RTL8367C_CVIDXNO - 1)
+#define RTL8367C_REGDATAMAX 0xFFFF
+#define RTL8367C_PHY_REGNOMAX 0x1F
+#define RTL8367C_PHY_BASE 0x2000
+#define RTL8367C_PHY_OFFSET 5
+#define PHY_RESOLVED_REG 26
+#define RTK_SWITCH_PORT_NUM (32)
+#define UNDEFINE_PHY_PORT (0xFF)
+#define RTL8367C_PRIMAX 7
+#define RTL8367C_VLAN_MEMBER_CONFIGURATION_BASE RTL8367C_REG_VLAN_MEMBER_CONFIGURATION0_CTRL0
+#define RTL8367C_VLAN_4KTABLE_LEN (3)
+#define RTL8367C_VIDMAX 0xFFF
+#define RTL8367C_TABLE_ACCESS_WRDATA_BASE RTL8367C_REG_TABLE_WRITE_DATA0
+#define RTL8367C_TABLE_ACCESS_WRDATA_REG(index) (RTL8367C_TABLE_ACCESS_WRDATA_BASE + index)
+#define RTL8367C_TABLE_ACCESS_ADDR_REG RTL8367C_REG_TABLE_ACCESS_ADDR
+#define RTL8367C_TABLE_ACCESS_CTRL_REG RTL8367C_REG_TABLE_ACCESS_CTRL
+#define RTL8367C_TABLE_ACCESS_REG_DATA(op, target) ((op << 3) | target)
+#define RTL8367C_VLAN_PORTBASED_PRIORITY_BASE RTL8367C_REG_VLAN_PORTBASED_PRIORITY_CTRL0
+#define RTL8367C_VLAN_PORTBASED_PRIORITY_REG(port) (RTL8367C_VLAN_PORTBASED_PRIORITY_BASE + (port >> 2))
+#define RTL8367C_VLAN_PORTBASED_PRIORITY_OFFSET(port) ((port & 0x3) << 2)
+#define RTL8367C_VLAN_PORTBASED_PRIORITY_MASK(port) (0x7 << RTL8367C_VLAN_PORTBASED_PRIORITY_OFFSET(port))
+#define RTL8367C_PORT_MISC_CFG_BASE RTL8367C_REG_PORT0_MISC_CFG
+#define RTL8367C_PORT_MISC_CFG_REG(port) (RTL8367C_PORT_MISC_CFG_BASE + (port << 5))
+
+    /* Function Name:
+     *      rtk_switch_phyPortMask_get
+     * Description:
+     *      Get physical portmask
+     * Input:
+     *      None
+     * Output:
+     *      None
+     * Return:
+     *      0x00                - Not Initialize
+     *      Other value         - Physical port mask
+     * Note:
+     *
+     */
+    uint32_t rtk_switch_phyPortMask_get()
+    {
+        return (halCtrl.phy_portmask);
+    }
+
+#define RTK_SCAN_ALL_PHY_PORTMASK(__port__)                        \
+    for (__port__ = 0; __port__ < RTK_SWITCH_PORT_NUM; __port__++) \
+        if ((rtk_switch_phyPortMask_get() & (0x00000001 << __port__)))
+
+#define RTL8367C_PORTNO 11
+#define RTL8367C_PORTIDMAX (RTL8367C_PORTNO - 1)
+
+#define RTL8367C_VLAN_PVID_CTRL_BASE RTL8367C_REG_VLAN_PVID_CTRL0
+#define RTL8367C_VLAN_PVID_CTRL_REG(port) (RTL8367C_VLAN_PVID_CTRL_BASE + (port >> 1))
+#define RTL8367C_PORT_VIDX_OFFSET(port) ((port & 1) << 3)
+#define RTL8367C_PORT_VIDX_MASK(port) (RTL8367C_PORT0_VIDX_MASK << RTL8367C_PORT_VIDX_OFFSET(port))
+#define RTL8367C_VLAN_EGRESS_MDOE_MASK RTL8367C_PORT0_MISC_CFG_VLAN_EGRESS_MODE_MASK
+#define RTL8367C_VLAN_INGRESS_REG RTL8367C_REG_VLAN_INGRESS
+
+/* Port mask defination */
+#define RTK_PHY_PORTMASK_ALL (rtk_switch_phyPortMask_get())
+
+#define RTL8367C_METERNO 64
+#define RTL8367C_METERMAX (RTL8367C_METERNO - 1)
+
     void _smi_start();
     void _smi_writeBit(uint16_t, uint32_t);
     void _smi_readBit(uint32_t, uint32_t *);
@@ -30,6 +101,18 @@ private:
     int32_t rtl8367c_getAsicPHYReg(uint32_t, uint32_t, uint32_t *);
     int32_t rtl8367c_getAsicPHYOCPReg(uint32_t, uint32_t, uint32_t *);
     int32_t rtl8367c_setAsicRegBits(uint32_t, uint32_t, uint32_t);
+    int32_t rtl8367c_setAsicRegBit(uint32_t, uint32_t, uint32_t);
+
+    typedef struct VLANCONFIGUSER
+    {
+        uint16_t evid;
+        uint16_t mbr;
+        uint16_t fid_msti;
+        uint16_t envlanpol;
+        uint16_t meteridx;
+        uint16_t vbpen;
+        uint16_t vbpri;
+    } rtl8367c_vlanconfiguser;
 
     uint16_t
         usTransmissionDelay;
@@ -38,14 +121,70 @@ private:
         sdaPin = 0,
         sckPin = 0;
 
-#define RTL8367C_REGBITLENGTH 16
-#define RTL8367C_REGDATAMAX 0xFFFF
-#define RTL8367C_PHY_REGNOMAX 0x1F
-#define RTL8367C_PHY_BASE 0x2000
-#define RTL8367C_PHY_OFFSET 5
-#define PHY_RESOLVED_REG 26
-#define RTK_SWITCH_PORT_NUM (32)
-#define UNDEFINE_PHY_PORT (0xFF)
+    typedef enum vlan_mbrCfgType_e
+    {
+        MBRCFG_UNUSED = 0,
+        MBRCFG_USED_BY_VLAN,
+        MBRCFG_END
+    } vlan_mbrCfgType_t;
+
+    uint32_t vlan_mbrCfgVid[RTL8367C_CVIDXNO];
+    vlan_mbrCfgType_t vlan_mbrCfgUsage[RTL8367C_CVIDXNO];
+
+    typedef struct USER_VLANTABLE
+    {
+
+        uint16_t vid;
+        uint16_t mbr;
+        uint16_t untag;
+        uint16_t fid_msti;
+        uint16_t envlanpol;
+        uint16_t meteridx;
+        uint16_t vbpen;
+        uint16_t vbpri;
+        uint16_t ivl_svl;
+
+    } rtl8367c_user_vlan4kentry;
+
+    enum RTL8367C_TABLE_ACCESS_OP
+    {
+        TB_OP_READ = 0,
+        TB_OP_WRITE
+    };
+
+    enum RTL8367C_TABLE_ACCESS_TARGET
+    {
+        TB_TARGET_ACLRULE = 1,
+        TB_TARGET_ACLACT,
+        TB_TARGET_CVLAN,
+        TB_TARGET_L2,
+        TB_TARGET_IGMP_GROUP
+    };
+
+    typedef enum
+    {
+        EG_TAG_MODE_ORI = 0,
+        EG_TAG_MODE_KEEP,
+        EG_TAG_MODE_PRI_TAG,
+        EG_TAG_MODE_REAL_KEEP,
+        EG_TAG_MODE_END
+    } rtl8367c_egtagmode;
+
+    typedef enum rtk_enable_e
+    {
+        DISABLED_RTK = 0,
+        ENABLED,
+        RTK_ENABLE_END
+    } rtk_enable_t;
+
+    int32_t rtl8367c_setAsicVlanMemberConfig(uint32_t, rtl8367c_vlanconfiguser *);
+    void _rtl8367c_VlanMCStUser2Smi(rtl8367c_vlanconfiguser *, uint16_t *);
+    int32_t rtl8367c_setAsicVlan4kEntry(rtl8367c_user_vlan4kentry *);
+    void _rtl8367c_Vlan4kStUser2Smi(rtl8367c_user_vlan4kentry *, uint16_t *);
+    int32_t rtl8367c_setAsicVlanPortBasedVID(uint32_t, uint32_t, uint32_t);
+    int32_t rtl8367c_setAsicVlanEgressTagMode(uint32_t port, rtl8367c_egtagmode tagMode);
+    int32_t rtl8367c_setAsicVlanIngressFilter(uint32_t port, uint32_t enabled);
+    int32_t rtl8367c_setAsicVlanFilter(uint32_t enabled);
 
     typedef enum port_type_e
     {

@@ -1,3 +1,5 @@
+#ifndef i2cPart_h
+#define i2cPart_h
 #include "Arduino.h"
 #include "rtl8367.h"
 
@@ -276,3 +278,98 @@ int32_t rtl8367::rtl8367c_getAsicReg(uint32_t reg, uint32_t *pValue)
 
     return RT_ERR_OK;
 }
+
+/* Function Name:
+ *      rtl8367c_setAsicRegBits
+ * Description:
+ *      Set bits value of a specified register
+ * Input:
+ *      reg     - register's address
+ *      bits    - bits mask for setting
+ *      value   - bits value for setting
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK       - Success
+ *      RT_ERR_SMI      - SMI access error
+ *      RT_ERR_INPUT    - Invalid input parameter
+ * Note:
+ *      Set bits of a specified register to value. Both bits and value are be treated as bit-mask
+ */
+int32_t rtl8367::rtl8367c_setAsicRegBits(uint32_t reg, uint32_t bits, uint32_t value)
+{
+    uint32_t regData;
+    int32_t retVal;
+    uint32_t bitsShift;
+    uint32_t valueShifted;
+
+    if (bits >= (1 << RTL8367C_REGBITLENGTH))
+        return RT_ERR_INPUT;
+
+    bitsShift = 0;
+    while (!(bits & (1 << bitsShift)))
+    {
+        bitsShift++;
+        if (bitsShift >= RTL8367C_REGBITLENGTH)
+            return RT_ERR_INPUT;
+    }
+    valueShifted = value << bitsShift;
+
+    if (valueShifted > RTL8367C_REGDATAMAX)
+        return RT_ERR_INPUT;
+
+    retVal = smi_read(reg, &regData);
+    if (retVal != RT_ERR_OK)
+        return RT_ERR_SMI;
+
+    regData = regData & (~bits);
+    regData = regData | (valueShifted & bits);
+
+    retVal = smi_write(reg, regData);
+    if (retVal != RT_ERR_OK)
+        return RT_ERR_SMI;
+
+    return RT_ERR_OK;
+}
+
+/* Function Name:
+ *      rtl8367c_setAsicRegBit
+ * Description:
+ *      Set a bit value of a specified register
+ * Input:
+ *      reg     - register's address
+ *      bit     - bit location
+ *      value   - value to set. It can be value 0 or 1.
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK       - Success
+ *      RT_ERR_SMI      - SMI access error
+ *      RT_ERR_INPUT    - Invalid input parameter
+ * Note:
+ *      Set a bit of a specified register to 1 or 0.
+ */
+int32_t rtl8367::rtl8367c_setAsicRegBit(uint32_t reg, uint32_t bit, uint32_t value)
+{
+    uint32_t regData;
+    int32_t retVal;
+
+    if (bit >= RTL8367C_REGBITLENGTH)
+        return RT_ERR_INPUT;
+
+    retVal = smi_read(reg, &regData);
+    if (retVal != RT_ERR_OK)
+        return RT_ERR_SMI;
+
+    if (value)
+        regData = regData | (1 << bit);
+    else
+        regData = regData & (~(1 << bit));
+
+    retVal = smi_write(reg, regData);
+    if (retVal != RT_ERR_OK)
+        return RT_ERR_SMI;
+
+    return RT_ERR_OK;
+}
+#endif
