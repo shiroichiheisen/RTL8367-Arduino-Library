@@ -4,6 +4,121 @@
 #include "errorTypes.h"
 #include "rtl8367c_reg.h"
 
+typedef enum rtk_port_e
+{
+    UTP_PORT0 = 0,
+    UTP_PORT1,
+    UTP_PORT2,
+    UTP_PORT3,
+    UTP_PORT4,
+    UTP_PORT5,
+    UTP_PORT6,
+    UTP_PORT7,
+
+    EXT_PORT0 = 16,
+    EXT_PORT1,
+    EXT_PORT2,
+
+    UNDEFINE_PORT = 30,
+    RTK_PORT_MAX = 31
+} rtk_port_t;
+
+typedef enum rtk_enable_e
+{
+    DISABLED_RTK = 0,
+    ENABLED,
+    RTK_ENABLE_END
+} rtk_enable_t;
+
+typedef enum rtk_vlan_acceptFrameType_e
+{
+    ACCEPT_FRAME_TYPE_ALL = 0,    /* untagged, priority-tagged and tagged */
+    ACCEPT_FRAME_TYPE_TAG_ONLY,   /* tagged */
+    ACCEPT_FRAME_TYPE_UNTAG_ONLY, /* untagged and priority-tagged */
+    ACCEPT_FRAME_TYPE_END
+} rtk_vlan_acceptFrameType_t;
+
+typedef enum
+{
+    FRAME_TYPE_BOTH = 0,
+    FRAME_TYPE_TAGGED_ONLY,
+    FRAME_TYPE_UNTAGGED_ONLY,
+    FRAME_TYPE_MAX_BOUND
+} rtl8367c_accframetype;
+
+typedef enum
+{
+    EG_TAG_MODE_ORI = 0,
+    EG_TAG_MODE_KEEP,
+    EG_TAG_MODE_PRI_TAG,
+    EG_TAG_MODE_REAL_KEEP,
+    EG_TAG_MODE_END
+} rtl8367c_egtagmode;
+
+#define RTK_TOTAL_NUM_OF_WORD_FOR_1BIT_PORT_LIST 1
+
+typedef struct rtk_portmask_s
+{
+    uint32_t bits[RTK_TOTAL_NUM_OF_WORD_FOR_1BIT_PORT_LIST];
+} rtk_portmask_t;
+
+typedef struct rtk_vlan_cfg_s
+{
+    rtk_portmask_t mbr;
+    rtk_portmask_t untag;
+    uint16_t ivl_en;
+    uint16_t fid_msti;
+    uint16_t envlanpol;
+    uint16_t meteridx;
+    uint16_t vbpen;
+    uint16_t vbpri;
+} rtk_vlan_cfg_t;
+
+typedef struct rtl8367c_svlan_memconf_s
+{
+
+    uint16_t vs_member : 11;
+    uint16_t vs_untag : 11;
+
+    uint16_t vs_fid_msti : 4;
+    uint16_t vs_priority : 3;
+    uint16_t vs_force_fid : 1;
+    uint16_t reserved : 8;
+
+    uint16_t vs_svid : 12;
+    uint16_t vs_efiden : 1;
+    uint16_t vs_efid : 3;
+
+} rtl8367c_svlan_memconf_t;
+
+typedef struct rtl8367c_svlan_mc2s_s
+{
+
+    uint16_t valid : 1;
+    uint16_t format : 1;
+    uint16_t svidx : 6;
+    uint32_t sdata;
+    uint32_t smask;
+} rtl8367c_svlan_mc2s_t;
+
+typedef struct rtl8367c_svlan_s2c_s
+{
+
+    uint16_t valid : 1;
+    uint16_t svidx : 6;
+    uint16_t dstport : 4;
+    uint32_t vid : 12;
+} rtl8367c_svlan_s2c_t;
+
+enum RTL8367C_SPRISEL
+{
+    SPRISEL_INTERNALPRI = 0,
+    SPRISEL_CTAGPRI,
+    SPRISEL_VSPRI,
+    SPRISEL_PBPRI,
+    SPRISEL_END
+};
+
 class rtl8367
 {
 public:
@@ -16,25 +131,20 @@ public:
 
     int32_t getPortStatus(uint8_t, uint8_t &, uint8_t &, uint8_t &);
 
+    int32_t rtk_vlan_init();
+
+    int32_t rtk_vlan_portPvid_set(rtk_port_t port, uint32_t pvid, uint32_t priority);
+    int32_t rtk_vlan_portPvid_get(rtk_port_t port, uint32_t *pPvid, uint32_t *pPriority);
+
+    int32_t rtk_vlan_portIgrFilterEnable_set(rtk_port_t port, rtk_enable_t igr_filter);
+
+    int32_t rtk_vlan_portAcceptFrameType_set(rtk_port_t port, rtk_vlan_acceptFrameType_t accept_frame_type);
+
+    int32_t rtk_vlan_tagMode_set(rtk_port_t port, rtl8367c_egtagmode tag_mode);
+
+    int32_t rtk_vlan_transparent_set(rtk_port_t egr_port, rtk_portmask_t *pIgr_pmask);
+
     int32_t rtk_svlan_init();
-
-#define RTK_TOTAL_NUM_OF_WORD_FOR_1BIT_PORT_LIST 1
-    typedef struct rtk_portmask_s
-    {
-        uint32_t bits[RTK_TOTAL_NUM_OF_WORD_FOR_1BIT_PORT_LIST];
-    } rtk_portmask_t;
-
-    typedef struct rtk_vlan_cfg_s
-    {
-        rtk_portmask_t mbr;
-        rtk_portmask_t untag;
-        uint16_t ivl_en;
-        uint16_t fid_msti;
-        uint16_t envlanpol;
-        uint16_t meteridx;
-        uint16_t vbpen;
-        uint16_t vbpri;
-    } rtk_vlan_cfg_t;
 
     /* Function Name:
      *      rtk_switch_maxMeterId_get
@@ -90,6 +200,33 @@ private:
 #define RTL8367C_VLAN_PORTBASED_PRIORITY_MASK(port) (0x7 << RTL8367C_VLAN_PORTBASED_PRIORITY_OFFSET(port))
 #define RTL8367C_PORT_MISC_CFG_BASE RTL8367C_REG_PORT0_MISC_CFG
 #define RTL8367C_PORT_MISC_CFG_REG(port) (RTL8367C_PORT_MISC_CFG_BASE + (port << 5))
+
+    /* Function Name:
+     *      rtk_switch_logicalPortCheck
+     * Description:
+     *      Check logical port ID.
+     * Input:
+     *      logicalPort     - logical port ID
+     * Output:
+     *      None
+     * Return:
+     *      RT_ERR_OK       - Port ID is correct
+     *      RT_ERR_FAILED   - Port ID is not correct
+     *      RT_ERR_NOT_INIT - Not Initialize
+     * Note:
+     *
+     */
+    int32_t rtk_switch_logicalPortCheck(rtk_port_t logicalPort)
+    {
+
+        if (logicalPort >= RTK_SWITCH_PORT_NUM)
+            return RT_ERR_FAILED;
+
+        if (halCtrl.l2p_port[logicalPort] == 0xFF)
+            return RT_ERR_FAILED;
+
+        return RT_ERR_OK;
+    }
 
     /* Function Name:
      *      rtk_switch_phyPortMask_get
@@ -222,22 +359,6 @@ private:
         TB_TARGET_IGMP_GROUP
     };
 
-    typedef enum
-    {
-        EG_TAG_MODE_ORI = 0,
-        EG_TAG_MODE_KEEP,
-        EG_TAG_MODE_PRI_TAG,
-        EG_TAG_MODE_REAL_KEEP,
-        EG_TAG_MODE_END
-    } rtl8367c_egtagmode;
-
-    typedef enum rtk_enable_e
-    {
-        DISABLED_RTK = 0,
-        ENABLED,
-        RTK_ENABLE_END
-    } rtk_enable_t;
-
 #define RTK_PORTMASK_IS_PORT_SET(__portmask__, __port__) (((__portmask__).bits[0] & (0x00000001 << __port__)) ? 1 : 0)
 
 #define RTK_PORTMASK_SCAN(__portmask__, __port__)                  \
@@ -294,25 +415,6 @@ private:
         INIT_COMPLETED,
         INIT_STATE_END
     } init_state_t;
-
-    typedef enum rtk_port_e
-    {
-        UTP_PORT0 = 0,
-        UTP_PORT1,
-        UTP_PORT2,
-        UTP_PORT3,
-        UTP_PORT4,
-        UTP_PORT5,
-        UTP_PORT6,
-        UTP_PORT7,
-
-        EXT_PORT0 = 16,
-        EXT_PORT1,
-        EXT_PORT2,
-
-        UNDEFINE_PORT = 30,
-        RTK_PORT_MAX = 31
-    } rtk_port_t;
 
     typedef struct rtl8367c_rma_s
     {
@@ -392,6 +494,54 @@ private:
             /* Trunk Group Mask */
             0x03};
 
+#define RTL8367C_VLAN_ACCEPT_FRAME_TYPE_BASE RTL8367C_REG_VLAN_ACCEPT_FRAME_TYPE_CTRL0
+#define RTL8367C_VLAN_ACCEPT_FRAME_TYPE_REG(port) (RTL8367C_VLAN_ACCEPT_FRAME_TYPE_BASE + (port >> 3))
+#define RTL8367C_VLAN_ACCEPT_FRAME_TYPE_MASK(port) (RTL8367C_PORT0_FRAME_TYPE_MASK << ((port & 0x7) << 1))
+
+    typedef enum rtk_svlan_untag_action_e
+    {
+        UNTAG_DROP = 0,
+        UNTAG_TRAP,
+        UNTAG_ASSIGN,
+        UNTAG_END
+    } rtk_svlan_untag_action_t;
+
+    typedef enum rtk_svlan_unmatch_action_e
+    {
+        UNMATCH_DROP = 0,
+        UNMATCH_TRAP,
+        UNMATCH_ASSIGN,
+        UNMATCH_END
+    } rtk_svlan_unmatch_action_t;
+
+#define RTL8367C_SVIDXNO 64
+#define RTL8367C_SVIDXMAX (RTL8367C_SVIDXNO - 1)
+#define RTL8367C_SVLAN_MEMCONF_LEN 4
+#define RTL8367C_SVLAN_MEMBERCFG_BASE_REG(index) (RTL8367C_REG_SVLAN_MEMBERCFG0_CTRL1 + index * 3)
+#define RTL8367C_C2SIDXNO 128
+#define RTL8367C_C2SIDXMAX (RTL8367C_C2SIDXNO - 1)
+#define RTL8367C_SVLAN_C2SCFG_BASE_REG(index) (RTL8367C_REG_SVLAN_C2SCFG0_CTRL0 + index * 3)
+#define RTL8367C_SP2CIDXNO 128
+#define RTL8367C_SP2CMAX (RTL8367C_SP2CIDXNO - 1)
+#define RTL8367C_MC2SIDXNO 32
+#define RTL8367C_MC2SIDXMAX (RTL8367C_MC2SIDXNO - 1)
+#define RTL8367C_SVLAN_SP2C_LEN 2
+#define RTL8367C_SVLAN_S2C_ENTRY_BASE_REG(index) (RTL8367C_REG_SVLAN_SP2C_ENTRY0_CTRL0 + index * 2)
+#define RTL8367C_SVLAN_MC2S_LEN 5
+#define RTL8367C_SVLAN_MCAST2S_ENTRY_BASE_REG(index) (RTL8367C_REG_SVLAN_MCAST2S_ENTRY0_CTRL0 + index * 5)
+
+    typedef enum rtk_svlan_lookupType_e
+    {
+        SVLAN_LOOKUP_S64MBRCGF = 0,
+        SVLAN_LOOKUP_C4KVLAN,
+        SVLAN_LOOKUP_END,
+
+    } rtk_svlan_lookupType_t;
+
+    rtk_svlan_lookupType_t svlan_lookupType;
+    uint8_t svlan_mbrCfgUsage[RTL8367C_SVIDXNO];
+    uint16_t svlan_mbrCfgVid[RTL8367C_SVIDXNO];
+
     void _smi_start();
     void _smi_writeBit(uint16_t, uint32_t);
     void _smi_readBit(uint32_t, uint32_t *);
@@ -405,8 +555,27 @@ private:
     int32_t rtl8367c_getAsicPHYReg(uint32_t, uint32_t, uint32_t *);
     int32_t rtl8367c_getAsicPHYOCPReg(uint32_t, uint32_t, uint32_t *);
     int32_t rtl8367c_setAsicRegBits(uint32_t, uint32_t, uint32_t);
+    int32_t rtl8367c_getAsicRegBits(uint32_t, uint32_t, uint32_t *);
     int32_t rtl8367c_setAsicRegBit(uint32_t, uint32_t, uint32_t);
     int32_t rtl8367c_getAsicRegBit(uint32_t, uint32_t, uint32_t *);
+    int32_t rtk_vlan_checkAndCreateMbr(uint32_t, uint32_t *);
+    int32_t rtl8367c_getAsicVlanPortBasedVID(uint32_t, uint32_t *, uint32_t *);
+    int32_t rtl8367c_setAsicVlanAccpetFrameType(uint32_t port, rtl8367c_accframetype frameType);
+    int32_t rtl8367c_setAsicVlanTransparent(uint32_t port, uint32_t portmask);
+    int32_t rtl8367c_setAsicSvlanPrioritySel(uint32_t priSel);
+    int32_t rtl8367c_setAsicSvlanIngressUntag(uint32_t mode);
+    int32_t rtl8367c_setAsicSvlanIngressUnmatch(uint32_t mode);
+    int32_t rtl8367c_setAsicSvlanTpid(uint32_t protocolType);
+    int32_t rtl8367c_setAsicSvlanUplinkPortMask(uint32_t portMask);
+    int32_t rtl8367c_setAsicSvlanMemberConfiguration(uint32_t index, rtl8367c_svlan_memconf_t *pSvlanMemCfg);
+    void _rtl8367c_svlanConfStUser2Smi(rtl8367c_svlan_memconf_t *pUserSt, uint16_t *pSmiSt);
+    int32_t rtl8367c_setAsicSvlanC2SConf(uint32_t index, uint32_t evid, uint32_t portmask, uint32_t svidx);
+    int32_t rtl8367c_setAsicSvlanSP2CConf(uint32_t index, rtl8367c_svlan_s2c_t *pSvlanSp2cCfg);
+    void _rtl8367c_svlanSp2cStUser2Smi(rtl8367c_svlan_s2c_t *pUserSt, uint16_t *pSmiSt);
+    int32_t rtl8367c_setAsicSvlanMC2SConf(uint32_t index, rtl8367c_svlan_mc2s_t *pSvlanMc2sCfg);
+    void _rtl8367c_svlanMc2sStUser2Smi(rtl8367c_svlan_mc2s_t *pUserSt, uint16_t *pSmiSt);
+    int32_t _rtk_svlan_lookupType_set(rtk_svlan_lookupType_t type);
+    int32_t rtl8367c_setAsicSvlanLookupType(uint32_t type);
 
     /* Function Name:
      *      rtk_switch_port_P2L_get

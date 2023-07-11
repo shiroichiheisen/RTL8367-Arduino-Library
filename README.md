@@ -14,9 +14,16 @@ This library is based on the realteck original library, theres a programming gui
 
 - [x] Read the port status - getPortStatus - Workin
 - [x] Probe the ic to see if its connected - probeIc - Working
-- [x] Init Vlan - rtk_svlan_init - Working
-- [x] Set Vlan - rtk_svlan_set
-- [x] Get Vlan - rtk_svlan_get
+- [x] Init Vlan - rtk_vlan_init - Working
+- [x] Set Vlan - rtk_vlan_set
+- [x] Get Vlan - rtk_vlan_get
+- [x] rtk_vlan_portPvid_set
+- [x] rtk_vlan_portPvid_get
+- [x] rtk_vlan_portIgrFilterEnable_set
+- [x] rtk_vlan_portAcceptFrameType_set
+- [x] rtk_vlan_tagMode_set
+- [x] rtk_vlan_transparent_set
+- [x] rtk_svlan_init
 
 # tested on:
 
