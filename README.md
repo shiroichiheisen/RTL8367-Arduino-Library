@@ -4,5 +4,14 @@ To use this library, you will need to connect the sda and sck pins to the arduin
 
 # Working:
 
-- [x] Read the port status - probeIc
-- [x] Probe the ic to see if its connected - getPortStatus
+- [x] Read the port status - getPortStatus
+- [x] Probe the ic to see if its connected - probeIc
+
+# tested on:
+
+- [x] RTL8367S
+
+# used the library on:
+
+- [x] Esp32
+- [x] Esp32-s2
