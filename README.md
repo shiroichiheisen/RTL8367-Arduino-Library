@@ -109,6 +109,10 @@ This library is based on the realteck original library, theres a programming gui
 - [x] rtk_dot1x_eapolFrame2CpuEnable_set
 - [x] rtk_dot1x_portBasedEnable_set
 - [x] rtk_dot1x_portBasedAuthStatus_set
+- [x] rtk_dot1x_portBasedDirection_set
+- [x] rtk_dot1x_unauthPacketOper_set
+- [x] rtk_rate_shareMeter_set
+- [x] rtk_rate_shareMeter_get
 
 # tested on:
 

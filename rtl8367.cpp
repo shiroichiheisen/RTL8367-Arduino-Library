@@ -14021,3 +14021,346 @@ int32_t rtl8367::rtk_dot1x_portBasedAuthStatus_set(rtk_port_t port, rtk_dot1x_au
 
     return RT_ERR_OK;
 }
+
+/* Function Name:
+ *      rtl8367c_setAsic1xPBOpdirConfig
+ * Description:
+ *      Set 802.1x port-based operational direction
+ * Input:
+ *      port    - Physical port number (0~7)
+ *      opdir   - Operation direction 1: IN, 0:BOTH
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK       - Success
+ *      RT_ERR_SMI      - SMI access error
+ *      RT_ERR_PORT_ID  - Invalid port number
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsic1xPBOpdirConfig(uint32_t port, uint32_t opdir)
+{
+    if (port >= RTL8367C_PORTNO)
+        return RT_ERR_PORT_ID;
+
+    return rtl8367c_setAsicRegBit(RTL8367C_DOT1X_PORT_OPDIR_REG, port, opdir);
+}
+int32_t rtl8367::rtk_dot1x_portBasedDirection_set(rtk_port_t port, rtk_dot1x_direction_t port_direction)
+{
+    int32_t retVal;
+
+    /* Check port Valid */
+    RTK_CHK_PORT_VALID(port);
+
+    if (port_direction >= DIRECTION_END)
+        return RT_ERR_DOT1X_PORTBASEDOPDIR;
+
+    if ((retVal = rtl8367c_setAsic1xPBOpdirConfig(rtk_switch_port_L2P_get(port), port_direction)) != RT_ERR_OK)
+        return retVal;
+
+    return RT_ERR_OK;
+}
+
+/* Function Name:
+ *      rtl8367c_setAsic1xProcConfig
+ * Description:
+ *      Set 802.1x unauth. behavior configuration
+ * Input:
+ *      port    - Physical port number (0~7)
+ *      proc    - 802.1x unauth. behavior configuration 0:drop 1:trap to CPU 2:Guest VLAN
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK           - Success
+ *      RT_ERR_SMI          - SMI access error
+ *      RT_ERR_PORT_ID      - Invalid port number
+ *      RT_ERR_DOT1X_PROC   - Unauthorized behavior error
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsic1xProcConfig(uint32_t port, uint32_t proc)
+{
+    if (port >= RTL8367C_PORTNO)
+        return RT_ERR_PORT_ID;
+
+    if (proc >= DOT1X_UNAUTH_END)
+        return RT_ERR_DOT1X_PROC;
+
+    if (port < 8)
+    {
+        return rtl8367c_setAsicRegBits(RTL8367C_DOT1X_UNAUTH_ACT_BASE, RTL8367C_DOT1X_UNAUTH_ACT_MASK(port), proc);
+    }
+    else
+    {
+        return rtl8367c_setAsicRegBits(RTL8367C_REG_DOT1X_UNAUTH_ACT_W1, RTL8367C_DOT1X_UNAUTH_ACT_MASK(port), proc);
+    }
+}
+int32_t rtl8367::rtk_dot1x_unauthPacketOper_set(rtk_port_t port, rtk_dot1x_unauth_action_t unauth_action)
+{
+    int32_t retVal;
+
+    /* Check port Valid */
+    RTK_CHK_PORT_VALID(port);
+
+    if (unauth_action >= DOT1X_ACTION_END)
+        return RT_ERR_DOT1X_PROC;
+
+    if ((retVal = rtl8367c_setAsic1xProcConfig(rtk_switch_port_L2P_get(port), unauth_action)) != RT_ERR_OK)
+        return retVal;
+
+    return RT_ERR_OK;
+}
+
+// ------------------------- SHARE METER ---------------------------------
+
+/* Function Name:
+ *      rtl8367c_setAsicShareMeter
+ * Description:
+ *      Set meter configuration
+ * Input:
+ *      index   - hared meter index (0-31)
+ *      rate    - 17-bits rate of share meter, unit is 8Kpbs
+ *      ifg     - Including IFG in rate calculation, 1:include 0:exclude
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK               - Success
+ *      RT_ERR_SMI              - SMI access error
+ *      RT_ERR_FILTER_METER_ID  - Invalid meter
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsicShareMeter(uint32_t index, uint32_t rate, uint32_t ifg)
+{
+    int32_t retVal;
+
+    if (index > RTL8367C_METERMAX)
+        return RT_ERR_FILTER_METER_ID;
+
+    if (index < 32)
+    {
+        /*19-bits Rate*/
+        retVal = rtl8367c_setAsicReg(RTL8367C_METER_RATE_REG(index), rate & 0xFFFF);
+        if (retVal != RT_ERR_OK)
+            return retVal;
+
+        retVal = rtl8367c_setAsicReg(RTL8367C_METER_RATE_REG(index) + 1, (rate & 0x70000) >> 16);
+        if (retVal != RT_ERR_OK)
+            return retVal;
+
+        retVal = rtl8367c_setAsicRegBit(RTL8367C_METER_IFG_CTRL_REG(index), RTL8367C_METER_IFG_OFFSET(index), ifg);
+        if (retVal != RT_ERR_OK)
+            return retVal;
+    }
+    else
+    {
+        /*19-bits Rate*/
+        retVal = rtl8367c_setAsicReg(RTL8367C_REG_METER32_RATE_CTRL0 + ((index - 32) << 1), rate & 0xFFFF);
+        if (retVal != RT_ERR_OK)
+            return retVal;
+
+        retVal = rtl8367c_setAsicReg(RTL8367C_REG_METER32_RATE_CTRL0 + ((index - 32) << 1) + 1, (rate & 0x70000) >> 16);
+        if (retVal != RT_ERR_OK)
+            return retVal;
+
+        retVal = rtl8367c_setAsicRegBit(RTL8367C_REG_METER_IFG_CTRL2 + ((index - 32) >> 4), RTL8367C_METER_IFG_OFFSET(index), ifg);
+        if (retVal != RT_ERR_OK)
+            return retVal;
+    }
+
+    return RT_ERR_OK;
+}
+
+/* Function Name:
+ *      rtl8367c_setAsicShareMeterType
+ * Description:
+ *      Set meter Type
+ * Input:
+ *      index       - shared meter index (0-31)
+ *      Type        - 0: kbps, 1: pps
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK               - Success
+ *      RT_ERR_SMI              - SMI access error
+ *      RT_ERR_FILTER_METER_ID  - Invalid meter
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsicShareMeterType(uint32_t index, uint32_t type)
+{
+    uint32_t reg;
+
+    if (index > RTL8367C_METERMAX)
+        return RT_ERR_FILTER_METER_ID;
+
+    if (index < 32)
+        reg = RTL8367C_REG_METER_MODE_SETTING0 + (index / 16);
+    else
+        reg = RTL8367C_REG_METER_MODE_SETTING2 + ((index - 32) / 16);
+    return rtl8367c_setAsicRegBit(reg, index % 16, type);
+}
+int32_t rtl8367::rtk_rate_shareMeter_set(uint32_t index, rtk_meter_type_t type, uint32_t rate, rtk_enable_t ifg_include)
+{
+    int32_t retVal;
+
+    if (index > halCtrl.max_meter_id)
+        return RT_ERR_FILTER_METER_ID;
+
+    if (type >= METER_TYPE_END)
+        return RT_ERR_INPUT;
+
+    if (ifg_include >= RTK_ENABLE_END)
+        return RT_ERR_INPUT;
+
+    switch (type)
+    {
+    case METER_TYPE_KBPS:
+        if (rate > RTL8367C_QOS_RATE_INPUT_MAX_HSG || rate < RTL8367C_QOS_RATE_INPUT_MIN)
+            return RT_ERR_RATE;
+
+        if ((retVal = rtl8367c_setAsicShareMeter(index, rate >> 3, ifg_include)) != RT_ERR_OK)
+            return retVal;
+
+        break;
+    case METER_TYPE_PPS:
+        if (rate > RTL8367C_QOS_PPS_INPUT_MAX || rate < RTL8367C_QOS_PPS_INPUT_MIN)
+            return RT_ERR_RATE;
+
+        if ((retVal = rtl8367c_setAsicShareMeter(index, rate, ifg_include)) != RT_ERR_OK)
+            return retVal;
+
+        break;
+    default:
+        return RT_ERR_INPUT;
+    }
+
+    /* Set Type */
+    if ((retVal = rtl8367c_setAsicShareMeterType(index, (uint32_t)type)) != RT_ERR_OK)
+        return retVal;
+
+    return RT_ERR_OK;
+}
+
+/* Function Name:
+ *      rtl8367c_getAsicShareMeter
+ * Description:
+ *      Get meter configuration
+ * Input:
+ *      index   - hared meter index (0-31)
+ *      pRate   - 17-bits rate of share meter, unit is 8Kpbs
+ *      pIfg    - Including IFG in rate calculation, 1:include 0:exclude
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK               - Success
+ *      RT_ERR_SMI              - SMI access error
+ *      RT_ERR_FILTER_METER_ID  - Invalid meter
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_getAsicShareMeter(uint32_t index, uint32_t *pRate, uint32_t *pIfg)
+{
+    uint32_t regData;
+    uint32_t regData2;
+    int32_t retVal;
+
+    if (index > RTL8367C_METERMAX)
+        return RT_ERR_FILTER_METER_ID;
+
+    if (index < 32)
+    {
+        /*17-bits Rate*/
+        retVal = rtl8367c_getAsicReg(RTL8367C_METER_RATE_REG(index), &regData);
+        if (retVal != RT_ERR_OK)
+            return retVal;
+
+        retVal = rtl8367c_getAsicReg(RTL8367C_METER_RATE_REG(index) + 1, &regData2);
+        if (retVal != RT_ERR_OK)
+            return retVal;
+
+        *pRate = ((regData2 << 16) & 0x70000) | regData;
+        /*IFG*/
+        retVal = rtl8367c_getAsicRegBit(RTL8367C_METER_IFG_CTRL_REG(index), RTL8367C_METER_IFG_OFFSET(index), pIfg);
+
+        return retVal;
+    }
+    else
+    {
+        /*17-bits Rate*/
+        retVal = rtl8367c_getAsicReg(RTL8367C_REG_METER32_RATE_CTRL0 + ((index - 32) << 1), &regData);
+        if (retVal != RT_ERR_OK)
+            return retVal;
+
+        retVal = rtl8367c_getAsicReg(RTL8367C_REG_METER32_RATE_CTRL0 + ((index - 32) << 1) + 1, &regData2);
+        if (retVal != RT_ERR_OK)
+            return retVal;
+
+        *pRate = ((regData2 << 16) & 0x70000) | regData;
+        /*IFG*/
+        retVal = rtl8367c_getAsicRegBit(RTL8367C_REG_METER_IFG_CTRL2 + ((index - 32) >> 4), RTL8367C_METER_IFG_OFFSET(index), pIfg);
+
+        return retVal;
+    }
+}
+/* Function Name:
+ *      rtl8367c_getAsicShareMeterType
+ * Description:
+ *      Get meter Type
+ * Input:
+ *      index       - shared meter index (0-31)
+ * Output:
+ *      pType       - 0: kbps, 1: pps
+ * Return:
+ *      RT_ERR_OK               - Success
+ *      RT_ERR_SMI              - SMI access error
+ *      RT_ERR_FILTER_METER_ID  - Invalid meter
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_getAsicShareMeterType(uint32_t index, uint32_t *pType)
+{
+    uint32_t reg;
+
+    if (index > RTL8367C_METERMAX)
+        return RT_ERR_FILTER_METER_ID;
+
+    if (NULL == pType)
+        return RT_ERR_NULL_POINTER;
+
+    if (index < 32)
+        reg = RTL8367C_REG_METER_MODE_SETTING0 + (index / 16);
+    else
+        reg = RTL8367C_REG_METER_MODE_SETTING2 + ((index - 32) / 16);
+    return rtl8367c_getAsicRegBit(reg, index % 16, pType);
+}
+int32_t rtl8367::rtk_rate_shareMeter_get(uint32_t index, rtk_meter_type_t *pType, uint32_t *pRate, rtk_enable_t *pIfg_include)
+{
+    int32_t retVal;
+    uint32_t regData;
+
+    if (index > halCtrl.max_meter_id)
+        return RT_ERR_FILTER_METER_ID;
+
+    if (NULL == pType)
+        return RT_ERR_NULL_POINTER;
+
+    if (NULL == pRate)
+        return RT_ERR_NULL_POINTER;
+
+    if (NULL == pIfg_include)
+        return RT_ERR_NULL_POINTER;
+
+    if ((retVal = rtl8367c_getAsicShareMeter(index, &regData, (uint32_t *)pIfg_include)) != RT_ERR_OK)
+        return retVal;
+
+    if ((retVal = rtl8367c_getAsicShareMeterType(index, (uint32_t *)pType)) != RT_ERR_OK)
+        return retVal;
+
+    if (*pType == METER_TYPE_KBPS)
+        *pRate = regData << 3;
+    else
+        *pRate = regData;
+
+    return RT_ERR_OK;
+}

@@ -109,6 +109,10 @@ public:
     int32_t rtk_dot1x_eapolFrame2CpuEnable_set(rtk_enable_t enable);
     int32_t rtk_dot1x_portBasedEnable_set(rtk_port_t port, rtk_enable_t enable);
     int32_t rtk_dot1x_portBasedAuthStatus_set(rtk_port_t port, rtk_dot1x_auth_status_t port_auth);
+    int32_t rtk_dot1x_portBasedDirection_set(rtk_port_t port, rtk_dot1x_direction_t port_direction);
+    int32_t rtk_dot1x_unauthPacketOper_set(rtk_port_t port, rtk_dot1x_unauth_action_t unauth_action);
+    int32_t rtk_rate_shareMeter_set(uint32_t index, rtk_meter_type_t type, uint32_t rate, rtk_enable_t ifg_include);
+    int32_t rtk_rate_shareMeter_get(uint32_t index, rtk_meter_type_t *pType, uint32_t *pRate, rtk_enable_t *pIfg_include);
 
 private:
     uint32_t vlan_mbrCfgVid[RTL8367C_CVIDXNO];
@@ -421,6 +425,12 @@ private:
     int32_t rtl8367c_setAsicEeeGiga(uint32_t port, uint32_t enable);
     int32_t rtl8367c_setAsic1xPBEnConfig(uint32_t port, uint32_t enabled);
     int32_t rtl8367c_setAsic1xPBAuthConfig(uint32_t port, uint32_t auth);
+    int32_t rtl8367c_setAsic1xPBOpdirConfig(uint32_t port, uint32_t opdir);
+    int32_t rtl8367c_setAsic1xProcConfig(uint32_t port, uint32_t proc);
+    int32_t rtl8367c_setAsicShareMeter(uint32_t index, uint32_t rate, uint32_t ifg);
+    int32_t rtl8367c_setAsicShareMeterType(uint32_t index, uint32_t type);
+    int32_t rtl8367c_getAsicShareMeter(uint32_t index, uint32_t *pRate, uint32_t *pIfg);
+    int32_t rtl8367c_getAsicShareMeterType(uint32_t index, uint32_t *pType);
 
     const uint8_t filter_templateField[RTL8367C_ACLTEMPLATENO][RTL8367C_ACLRULEFIELDNO] = {
         {ACL_DMAC0, ACL_DMAC1, ACL_DMAC2, ACL_SMAC0, ACL_SMAC1, ACL_SMAC2, ACL_ETHERTYPE, ACL_FIELD_SELECT15},
