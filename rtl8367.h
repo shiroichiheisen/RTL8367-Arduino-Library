@@ -173,6 +173,20 @@ public:
 
     int32_t rtk_filter_igrAcl_init();
 
+    int32_t rtk_filter_igrAcl_template_set(rtk_filter_template_t *aclTemplate);
+
+    int32_t rtk_filter_igrAcl_template_get(rtk_filter_template_t *aclTemplate);
+
+    int32_t rtk_filter_igrAcl_field_add(rtk_filter_cfg_t *pFilter_cfg, rtk_filter_field_t *pFilter_field);
+
+    int32_t rtk_filter_igrAcl_cfg_add(rtk_filter_id_t filter_id, rtk_filter_cfg_t *pFilter_cfg, rtk_filter_action_t *pFilter_action, uint32_t *ruleNum);
+
+    int32_t rtk_filter_igrAcl_cfg_del(rtk_filter_id_t filter_id);
+
+    int32_t rtk_filter_igrAcl_cfg_delAll();
+
+    int32_t rtk_filter_igrAcl_cfg_get(rtk_filter_id_t filter_id, rtk_filter_cfg_raw_t *pFilter_cfg, rtk_filter_action_t *pAction);
+
 private:
     uint32_t vlan_mbrCfgVid[RTL8367C_CVIDXNO];
     vlan_mbrCfgType_t vlan_mbrCfgUsage[RTL8367C_CVIDXNO];
@@ -464,6 +478,19 @@ private:
     int32_t rtl8367c_setAsicFieldSelector(uint32_t index, uint32_t format, uint32_t offset);
     int32_t rtl8367c_setAsicAcl(uint32_t port, uint32_t enabled);
     int32_t rtl8367c_setAsicAclUnmatchedPermit(uint32_t port, uint32_t enabled);
+    int32_t rtl8367c_getAsicAclTemplate(uint32_t index, rtl8367c_acltemplate_t *pAclType);
+    int32_t _rtk_filter_igrAcl_writeDataField(rtl8367c_aclrule *aclRule, rtk_filter_field_t *fieldPtr);
+    int32_t rtk_svlan_checkAndCreateMbr(uint32_t vid, uint32_t *pIndex);
+    int32_t rtl8367c_getAsicAclRule(uint32_t index, rtl8367c_aclrule *pAclRule);
+    void _rtl8367c_aclRuleStSmi2User(rtl8367c_aclrule *pAclUser, rtl8367c_aclrulesmi *pAclSmi);
+    int32_t rtl8367c_setAsicAclAct(uint32_t index, rtl8367c_acl_act_t *pAclAct);
+    void _rtl8367c_aclActStUser2Smi(rtl8367c_acl_act_t *pAclUser, uint16_t *pAclSmi);
+    int32_t rtl8367c_setAsicAclRule(uint32_t index, rtl8367c_aclrule *pAclRule);
+    void _rtl8367c_aclRuleStUser2Smi(rtl8367c_aclrule *pAclUser, rtl8367c_aclrulesmi *pAclSmi);
+    int32_t rtl8367c_getAsicAclNot(uint32_t index, uint32_t *pNot);
+    int32_t rtl8367c_getAsicAclAct(uint32_t index, rtl8367c_acl_act_t *pAclAct);
+    void _rtl8367c_aclActStSmi2User(rtl8367c_acl_act_t *pAclUser, uint16_t *pAclSmi);
+    int32_t rtl8367c_getAsicAclActCtrl(uint32_t index, uint32_t *pAclActCtrl);
 
     const uint8_t filter_templateField[RTL8367C_ACLTEMPLATENO][RTL8367C_ACLRULEFIELDNO] = {
         {ACL_DMAC0, ACL_DMAC1, ACL_DMAC2, ACL_SMAC0, ACL_SMAC1, ACL_SMAC2, ACL_ETHERTYPE, ACL_FIELD_SELECT15},

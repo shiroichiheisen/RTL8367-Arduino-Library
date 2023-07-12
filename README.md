@@ -92,6 +92,13 @@ This library is based on the realteck original library, theres a programming gui
 - [x] rtk_l2_limitLearningCnt_get
 - [x] rtk_l2_learningCnt_get
 - [x] rtk_filter_igrAcl_init
+- [x] rtk_filter_igrAcl_template_set
+- [x] rtk_filter_igrAcl_template_get
+- [x] rtk_filter_igrAcl_field_add
+- [x] rtk_filter_igrAcl_cfg_add
+- [x] rtk_filter_igrAcl_cfg_del
+- [x] rtk_filter_igrAcl_cfg_delAll
+- [x] rtk_filter_igrAcl_cfg_get
 
 # tested on:
 

@@ -11650,3 +11650,1895 @@ int32_t rtl8367::rtk_filter_igrAcl_init()
 
     return RT_ERR_OK;
 }
+
+/* Function Name:
+ *      rtl8367c_getAsicAclTemplate
+ * Description:
+ *      Get fields of a ACL Template
+ * Input:
+ *      index   - ACL template index(0~4)
+ *      pAclType - ACL type stucture for setting
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK               - Success
+ *      RT_ERR_SMI              - SMI access error
+ *      RT_ERR_OUT_OF_RANGE     - Invalid ACL template index(0~4)
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_getAsicAclTemplate(uint32_t index, rtl8367c_acltemplate_t *pAclType)
+{
+    int32_t retVal;
+    uint32_t i;
+    uint32_t regData, regAddr;
+
+    if (index >= RTL8367C_ACLTEMPLATENO)
+        return RT_ERR_OUT_OF_RANGE;
+
+    regAddr = RTL8367C_ACL_RULE_TEMPLATE_CTRL_REG(index);
+
+    for (i = 0; i < (RTL8367C_ACLRULEFIELDNO / 2); i++)
+    {
+        retVal = rtl8367c_getAsicReg(regAddr + i, &regData);
+        if (retVal != RT_ERR_OK)
+            return retVal;
+
+        pAclType->field[i * 2] = regData & 0xFF;
+        pAclType->field[i * 2 + 1] = (regData >> 8) & 0xFF;
+    }
+
+    return RT_ERR_OK;
+}
+int32_t rtl8367::rtk_filter_igrAcl_template_set(rtk_filter_template_t *aclTemplate)
+{
+    int32_t retVal;
+    uint32_t idxField;
+    rtl8367c_acltemplate_t aclType;
+
+    if (aclTemplate->index >= RTK_MAX_NUM_OF_FILTER_TYPE)
+        return RT_ERR_INPUT;
+
+    for (idxField = 0; idxField < RTK_MAX_NUM_OF_FILTER_FIELD; idxField++)
+    {
+        if (aclTemplate->fieldType[idxField] < FILTER_FIELD_RAW_DMAC_15_0 ||
+            (aclTemplate->fieldType[idxField] > FILTER_FIELD_RAW_CTAG && aclTemplate->fieldType[idxField] < FILTER_FIELD_RAW_IPV4_SIP_15_0) ||
+            (aclTemplate->fieldType[idxField] > FILTER_FIELD_RAW_IPV4_DIP_31_16 && aclTemplate->fieldType[idxField] < FILTER_FIELD_RAW_IPV6_SIP_15_0) ||
+            (aclTemplate->fieldType[idxField] > FILTER_FIELD_RAW_IPV6_DIP_31_16 && aclTemplate->fieldType[idxField] < FILTER_FIELD_RAW_VIDRANGE) ||
+            (aclTemplate->fieldType[idxField] > FILTER_FIELD_RAW_FIELD_VALID && aclTemplate->fieldType[idxField] < FILTER_FIELD_RAW_FIELD_SELECT00) ||
+            aclTemplate->fieldType[idxField] >= FILTER_FIELD_RAW_END)
+        {
+            return RT_ERR_INPUT;
+        }
+    }
+
+    for (idxField = 0; idxField < RTK_MAX_NUM_OF_FILTER_FIELD; idxField++)
+    {
+        aclType.field[idxField] = aclTemplate->fieldType[idxField];
+    }
+
+    if ((retVal = rtl8367c_setAsicAclTemplate(aclTemplate->index, &aclType)) != RT_ERR_OK)
+        return retVal;
+
+    return RT_ERR_OK;
+}
+
+int32_t rtl8367::rtk_filter_igrAcl_template_get(rtk_filter_template_t *aclTemplate)
+{
+    int32_t ret;
+    uint32_t idxField;
+    rtl8367c_acltemplate_t aclType;
+
+    if (NULL == aclTemplate)
+        return RT_ERR_NULL_POINTER;
+
+    if (aclTemplate->index >= RTK_MAX_NUM_OF_FILTER_TYPE)
+        return RT_ERR_INPUT;
+
+    if ((ret = rtl8367c_getAsicAclTemplate(aclTemplate->index, &aclType)) != RT_ERR_OK)
+        return ret;
+
+    for (idxField = 0; idxField < RTK_MAX_NUM_OF_FILTER_FIELD; idxField++)
+    {
+        aclTemplate->fieldType[idxField] = (rtk_filter_field_type_raw_t)aclType.field[idxField];
+    }
+
+    return RT_ERR_OK;
+}
+
+int32_t rtl8367::rtk_filter_igrAcl_field_add(rtk_filter_cfg_t *pFilter_cfg, rtk_filter_field_t *pFilter_field)
+{
+    uint32_t i;
+    rtk_filter_field_t *tailPtr;
+
+    if (NULL == pFilter_cfg || NULL == pFilter_field)
+        return RT_ERR_NULL_POINTER;
+
+    if (pFilter_field->fieldType >= FILTER_FIELD_END)
+        return RT_ERR_ENTRY_INDEX;
+
+    if (0 == pFilter_field->fieldTemplateNo)
+    {
+        pFilter_field->fieldTemplateNo = filter_fieldSize[pFilter_field->fieldType];
+
+        for (i = 0; i < pFilter_field->fieldTemplateNo; i++)
+        {
+            pFilter_field->fieldTemplateIdx[i] = filter_fieldTemplateIndex[pFilter_field->fieldType][i];
+        }
+    }
+
+    if (NULL == pFilter_cfg->fieldHead)
+    {
+        pFilter_cfg->fieldHead = pFilter_field;
+    }
+    else
+    {
+        if (pFilter_cfg->fieldHead->next == NULL)
+        {
+            pFilter_cfg->fieldHead->next = pFilter_field;
+        }
+        else
+        {
+            tailPtr = pFilter_cfg->fieldHead->next;
+            while (tailPtr->next != NULL)
+            {
+                tailPtr = tailPtr->next;
+            }
+            tailPtr->next = pFilter_field;
+        }
+    }
+
+    return RT_ERR_OK;
+}
+
+int32_t rtl8367::_rtk_filter_igrAcl_writeDataField(rtl8367c_aclrule *aclRule, rtk_filter_field_t *fieldPtr)
+{
+    uint32_t i, tempIdx, fieldIdx, ipValue, ipMask;
+    uint32_t ip6addr[RTK_IPV6_ADDR_WORD_LENGTH];
+    uint32_t ip6mask[RTK_IPV6_ADDR_WORD_LENGTH];
+
+    for (i = 0; i < fieldPtr->fieldTemplateNo; i++)
+    {
+        tempIdx = (fieldPtr->fieldTemplateIdx[i] & 0xF0) >> 4;
+
+        aclRule[tempIdx].valid = 1;
+    }
+
+    switch (fieldPtr->fieldType)
+    {
+    /* use DMAC structure as representative for mac structure */
+    case FILTER_FIELD_DMAC:
+    case FILTER_FIELD_SMAC:
+
+        for (i = 0; i < fieldPtr->fieldTemplateNo; i++)
+        {
+            tempIdx = (fieldPtr->fieldTemplateIdx[i] & 0xF0) >> 4;
+            fieldIdx = fieldPtr->fieldTemplateIdx[i] & 0x0F;
+
+            aclRule[tempIdx].data_bits.field[fieldIdx] = fieldPtr->filter_pattern_union.mac.value.octet[5 - i * 2] | (fieldPtr->filter_pattern_union.mac.value.octet[5 - (i * 2 + 1)] << 8);
+            aclRule[tempIdx].care_bits.field[fieldIdx] = fieldPtr->filter_pattern_union.mac.mask.octet[5 - i * 2] | (fieldPtr->filter_pattern_union.mac.mask.octet[5 - (i * 2 + 1)] << 8);
+        }
+        break;
+    case FILTER_FIELD_ETHERTYPE:
+        for (i = 0; i < fieldPtr->fieldTemplateNo; i++)
+        {
+            tempIdx = (fieldPtr->fieldTemplateIdx[i] & 0xF0) >> 4;
+            fieldIdx = fieldPtr->fieldTemplateIdx[i] & 0x0F;
+
+            aclRule[tempIdx].data_bits.field[fieldIdx] = fieldPtr->filter_pattern_union.etherType.value;
+            aclRule[tempIdx].care_bits.field[fieldIdx] = fieldPtr->filter_pattern_union.etherType.mask;
+        }
+        break;
+    case FILTER_FIELD_IPV4_SIP:
+    case FILTER_FIELD_IPV4_DIP:
+
+        ipValue = fieldPtr->filter_pattern_union.sip.value;
+        ipMask = fieldPtr->filter_pattern_union.sip.mask;
+
+        for (i = 0; i < fieldPtr->fieldTemplateNo; i++)
+        {
+            tempIdx = (fieldPtr->fieldTemplateIdx[i] & 0xF0) >> 4;
+            fieldIdx = fieldPtr->fieldTemplateIdx[i] & 0x0F;
+
+            aclRule[tempIdx].data_bits.field[fieldIdx] = (0xFFFF & (ipValue >> (i * 16)));
+            aclRule[tempIdx].care_bits.field[fieldIdx] = (0xFFFF & (ipMask >> (i * 16)));
+        }
+        break;
+    case FILTER_FIELD_IPV4_TOS:
+        for (i = 0; i < fieldPtr->fieldTemplateNo; i++)
+        {
+            tempIdx = (fieldPtr->fieldTemplateIdx[i] & 0xF0) >> 4;
+            fieldIdx = fieldPtr->fieldTemplateIdx[i] & 0x0F;
+
+            aclRule[tempIdx].data_bits.field[fieldIdx] = fieldPtr->filter_pattern_union.ipTos.value & 0xFF;
+            aclRule[tempIdx].care_bits.field[fieldIdx] = fieldPtr->filter_pattern_union.ipTos.mask & 0xFF;
+        }
+        break;
+    case FILTER_FIELD_IPV4_PROTOCOL:
+        for (i = 0; i < fieldPtr->fieldTemplateNo; i++)
+        {
+            tempIdx = (fieldPtr->fieldTemplateIdx[i] & 0xF0) >> 4;
+            fieldIdx = fieldPtr->fieldTemplateIdx[i] & 0x0F;
+
+            aclRule[tempIdx].data_bits.field[fieldIdx] = fieldPtr->filter_pattern_union.protocol.value & 0xFF;
+            aclRule[tempIdx].care_bits.field[fieldIdx] = fieldPtr->filter_pattern_union.protocol.mask & 0xFF;
+        }
+        break;
+    case FILTER_FIELD_IPV6_SIPV6:
+    case FILTER_FIELD_IPV6_DIPV6:
+        for (i = 0; i < RTK_IPV6_ADDR_WORD_LENGTH; i++)
+        {
+            ip6addr[i] = fieldPtr->filter_pattern_union.sipv6.value.addr[i];
+            ip6mask[i] = fieldPtr->filter_pattern_union.sipv6.mask.addr[i];
+        }
+
+        for (i = 0; i < fieldPtr->fieldTemplateNo; i++)
+        {
+            tempIdx = (fieldPtr->fieldTemplateIdx[i] & 0xF0) >> 4;
+            fieldIdx = fieldPtr->fieldTemplateIdx[i] & 0x0F;
+
+            if (i < 2)
+            {
+                aclRule[tempIdx].data_bits.field[fieldIdx] = ((ip6addr[0] & (0xFFFF << (i * 16))) >> (i * 16));
+                aclRule[tempIdx].care_bits.field[fieldIdx] = ((ip6mask[0] & (0xFFFF << (i * 16))) >> (i * 16));
+            }
+            else
+            {
+                /*default acl template for ipv6 address supports MSB 32-bits and LSB 32-bits only*/
+                aclRule[tempIdx].data_bits.field[fieldIdx] = ((ip6addr[3] & (0xFFFF << ((i & 1) * 16))) >> ((i & 1) * 16));
+                aclRule[tempIdx].care_bits.field[fieldIdx] = ((ip6mask[3] & (0xFFFF << ((i & 1) * 16))) >> ((i & 1) * 16));
+            }
+        }
+
+        break;
+    case FILTER_FIELD_CTAG:
+    case FILTER_FIELD_STAG:
+
+        for (i = 0; i < fieldPtr->fieldTemplateNo; i++)
+        {
+            tempIdx = (fieldPtr->fieldTemplateIdx[i] & 0xF0) >> 4;
+            fieldIdx = fieldPtr->fieldTemplateIdx[i] & 0x0F;
+
+            aclRule[tempIdx].data_bits.field[fieldIdx] = (fieldPtr->filter_pattern_union.l2tag.pri.value << 13) | (fieldPtr->filter_pattern_union.l2tag.cfi.value << 12) | fieldPtr->filter_pattern_union.l2tag.vid.value;
+            aclRule[tempIdx].care_bits.field[fieldIdx] = (fieldPtr->filter_pattern_union.l2tag.pri.mask << 13) | (fieldPtr->filter_pattern_union.l2tag.cfi.mask << 12) | fieldPtr->filter_pattern_union.l2tag.vid.mask;
+        }
+        break;
+    case FILTER_FIELD_IPV4_FLAG:
+
+        for (i = 0; i < fieldPtr->fieldTemplateNo; i++)
+        {
+            tempIdx = (fieldPtr->fieldTemplateIdx[i] & 0xF0) >> 4;
+            fieldIdx = fieldPtr->fieldTemplateIdx[i] & 0x0F;
+
+            aclRule[tempIdx].data_bits.field[fieldIdx] &= 0x1FFF;
+            aclRule[tempIdx].data_bits.field[fieldIdx] |= (fieldPtr->filter_pattern_union.ipFlag.xf.value << 15);
+            aclRule[tempIdx].data_bits.field[fieldIdx] |= (fieldPtr->filter_pattern_union.ipFlag.df.value << 14);
+            aclRule[tempIdx].data_bits.field[fieldIdx] |= (fieldPtr->filter_pattern_union.ipFlag.mf.value << 13);
+
+            aclRule[tempIdx].care_bits.field[fieldIdx] &= 0x1FFF;
+            aclRule[tempIdx].care_bits.field[fieldIdx] |= (fieldPtr->filter_pattern_union.ipFlag.xf.mask << 15);
+            aclRule[tempIdx].care_bits.field[fieldIdx] |= (fieldPtr->filter_pattern_union.ipFlag.df.mask << 14);
+            aclRule[tempIdx].care_bits.field[fieldIdx] |= (fieldPtr->filter_pattern_union.ipFlag.mf.mask << 13);
+        }
+
+        break;
+    case FILTER_FIELD_IPV4_OFFSET:
+
+        for (i = 0; i < fieldPtr->fieldTemplateNo; i++)
+        {
+            tempIdx = (fieldPtr->fieldTemplateIdx[i] & 0xF0) >> 4;
+            fieldIdx = fieldPtr->fieldTemplateIdx[i] & 0x0F;
+
+            aclRule[tempIdx].data_bits.field[fieldIdx] &= 0xE000;
+            aclRule[tempIdx].data_bits.field[fieldIdx] |= fieldPtr->filter_pattern_union.inData.value;
+
+            aclRule[tempIdx].care_bits.field[fieldIdx] &= 0xE000;
+            aclRule[tempIdx].care_bits.field[fieldIdx] |= fieldPtr->filter_pattern_union.inData.mask;
+        }
+
+        break;
+
+    case FILTER_FIELD_IPV6_TRAFFIC_CLASS:
+        for (i = 0; i < fieldPtr->fieldTemplateNo; i++)
+        {
+            tempIdx = (fieldPtr->fieldTemplateIdx[i] & 0xF0) >> 4;
+            fieldIdx = fieldPtr->fieldTemplateIdx[i] & 0x0F;
+
+            aclRule[tempIdx].data_bits.field[fieldIdx] = (fieldPtr->filter_pattern_union.inData.value << 4) & 0x0FF0;
+            aclRule[tempIdx].care_bits.field[fieldIdx] = (fieldPtr->filter_pattern_union.inData.mask << 4) & 0x0FF0;
+        }
+        break;
+    case FILTER_FIELD_IPV6_NEXT_HEADER:
+        for (i = 0; i < fieldPtr->fieldTemplateNo; i++)
+        {
+            tempIdx = (fieldPtr->fieldTemplateIdx[i] & 0xF0) >> 4;
+            fieldIdx = fieldPtr->fieldTemplateIdx[i] & 0x0F;
+
+            aclRule[tempIdx].data_bits.field[fieldIdx] = fieldPtr->filter_pattern_union.inData.value << 8;
+            aclRule[tempIdx].care_bits.field[fieldIdx] = fieldPtr->filter_pattern_union.inData.mask << 8;
+        }
+        break;
+    case FILTER_FIELD_TCP_SPORT:
+        for (i = 0; i < fieldPtr->fieldTemplateNo; i++)
+        {
+            tempIdx = (fieldPtr->fieldTemplateIdx[i] & 0xF0) >> 4;
+            fieldIdx = fieldPtr->fieldTemplateIdx[i] & 0x0F;
+
+            aclRule[tempIdx].data_bits.field[fieldIdx] = fieldPtr->filter_pattern_union.tcpSrcPort.value;
+            aclRule[tempIdx].care_bits.field[fieldIdx] = fieldPtr->filter_pattern_union.tcpSrcPort.mask;
+        }
+        break;
+    case FILTER_FIELD_TCP_DPORT:
+        for (i = 0; i < fieldPtr->fieldTemplateNo; i++)
+        {
+            tempIdx = (fieldPtr->fieldTemplateIdx[i] & 0xF0) >> 4;
+            fieldIdx = fieldPtr->fieldTemplateIdx[i] & 0x0F;
+
+            aclRule[tempIdx].data_bits.field[fieldIdx] = fieldPtr->filter_pattern_union.tcpDstPort.value;
+            aclRule[tempIdx].care_bits.field[fieldIdx] = fieldPtr->filter_pattern_union.tcpDstPort.mask;
+        }
+        break;
+    case FILTER_FIELD_TCP_FLAG:
+
+        for (i = 0; i < fieldPtr->fieldTemplateNo; i++)
+        {
+            tempIdx = (fieldPtr->fieldTemplateIdx[i] & 0xF0) >> 4;
+            fieldIdx = fieldPtr->fieldTemplateIdx[i] & 0x0F;
+
+            aclRule[tempIdx].data_bits.field[fieldIdx] |= (fieldPtr->filter_pattern_union.tcpFlag.cwr.value << 7);
+            aclRule[tempIdx].data_bits.field[fieldIdx] |= (fieldPtr->filter_pattern_union.tcpFlag.ece.value << 6);
+            aclRule[tempIdx].data_bits.field[fieldIdx] |= (fieldPtr->filter_pattern_union.tcpFlag.urg.value << 5);
+            aclRule[tempIdx].data_bits.field[fieldIdx] |= (fieldPtr->filter_pattern_union.tcpFlag.ack.value << 4);
+            aclRule[tempIdx].data_bits.field[fieldIdx] |= (fieldPtr->filter_pattern_union.tcpFlag.psh.value << 3);
+            aclRule[tempIdx].data_bits.field[fieldIdx] |= (fieldPtr->filter_pattern_union.tcpFlag.rst.value << 2);
+            aclRule[tempIdx].data_bits.field[fieldIdx] |= (fieldPtr->filter_pattern_union.tcpFlag.syn.value << 1);
+            aclRule[tempIdx].data_bits.field[fieldIdx] |= fieldPtr->filter_pattern_union.tcpFlag.fin.value;
+
+            aclRule[tempIdx].care_bits.field[fieldIdx] |= (fieldPtr->filter_pattern_union.tcpFlag.cwr.mask << 7);
+            aclRule[tempIdx].care_bits.field[fieldIdx] |= (fieldPtr->filter_pattern_union.tcpFlag.ece.mask << 6);
+            aclRule[tempIdx].care_bits.field[fieldIdx] |= (fieldPtr->filter_pattern_union.tcpFlag.urg.mask << 5);
+            aclRule[tempIdx].care_bits.field[fieldIdx] |= (fieldPtr->filter_pattern_union.tcpFlag.ack.mask << 4);
+            aclRule[tempIdx].care_bits.field[fieldIdx] |= (fieldPtr->filter_pattern_union.tcpFlag.psh.mask << 3);
+            aclRule[tempIdx].care_bits.field[fieldIdx] |= (fieldPtr->filter_pattern_union.tcpFlag.rst.mask << 2);
+            aclRule[tempIdx].care_bits.field[fieldIdx] |= (fieldPtr->filter_pattern_union.tcpFlag.syn.mask << 1);
+            aclRule[tempIdx].care_bits.field[fieldIdx] |= fieldPtr->filter_pattern_union.tcpFlag.fin.mask;
+        }
+        break;
+    case FILTER_FIELD_UDP_SPORT:
+        for (i = 0; i < fieldPtr->fieldTemplateNo; i++)
+        {
+            tempIdx = (fieldPtr->fieldTemplateIdx[i] & 0xF0) >> 4;
+            fieldIdx = fieldPtr->fieldTemplateIdx[i] & 0x0F;
+
+            aclRule[tempIdx].data_bits.field[fieldIdx] = fieldPtr->filter_pattern_union.udpSrcPort.value;
+            aclRule[tempIdx].care_bits.field[fieldIdx] = fieldPtr->filter_pattern_union.udpSrcPort.mask;
+        }
+        break;
+    case FILTER_FIELD_UDP_DPORT:
+        for (i = 0; i < fieldPtr->fieldTemplateNo; i++)
+        {
+            tempIdx = (fieldPtr->fieldTemplateIdx[i] & 0xF0) >> 4;
+            fieldIdx = fieldPtr->fieldTemplateIdx[i] & 0x0F;
+
+            aclRule[tempIdx].data_bits.field[fieldIdx] = fieldPtr->filter_pattern_union.udpDstPort.value;
+            aclRule[tempIdx].care_bits.field[fieldIdx] = fieldPtr->filter_pattern_union.udpDstPort.mask;
+        }
+        break;
+    case FILTER_FIELD_ICMP_CODE:
+        for (i = 0; i < fieldPtr->fieldTemplateNo; i++)
+        {
+            tempIdx = (fieldPtr->fieldTemplateIdx[i] & 0xF0) >> 4;
+            fieldIdx = fieldPtr->fieldTemplateIdx[i] & 0x0F;
+
+            aclRule[tempIdx].data_bits.field[fieldIdx] &= 0xFF00;
+            aclRule[tempIdx].data_bits.field[fieldIdx] |= fieldPtr->filter_pattern_union.icmpCode.value;
+            aclRule[tempIdx].care_bits.field[fieldIdx] &= 0xFF00;
+            aclRule[tempIdx].care_bits.field[fieldIdx] |= fieldPtr->filter_pattern_union.icmpCode.mask;
+        }
+        break;
+    case FILTER_FIELD_ICMP_TYPE:
+        for (i = 0; i < fieldPtr->fieldTemplateNo; i++)
+        {
+            tempIdx = (fieldPtr->fieldTemplateIdx[i] & 0xF0) >> 4;
+            fieldIdx = fieldPtr->fieldTemplateIdx[i] & 0x0F;
+
+            aclRule[tempIdx].data_bits.field[fieldIdx] &= 0x00FF;
+            aclRule[tempIdx].data_bits.field[fieldIdx] |= (fieldPtr->filter_pattern_union.icmpType.value << 8);
+            aclRule[tempIdx].care_bits.field[fieldIdx] &= 0x00FF;
+            aclRule[tempIdx].care_bits.field[fieldIdx] |= (fieldPtr->filter_pattern_union.icmpType.mask << 8);
+        }
+        break;
+    case FILTER_FIELD_IGMP_TYPE:
+        for (i = 0; i < fieldPtr->fieldTemplateNo; i++)
+        {
+            tempIdx = (fieldPtr->fieldTemplateIdx[i] & 0xF0) >> 4;
+            fieldIdx = fieldPtr->fieldTemplateIdx[i] & 0x0F;
+
+            aclRule[tempIdx].data_bits.field[fieldIdx] = (fieldPtr->filter_pattern_union.igmpType.value << 8);
+            aclRule[tempIdx].care_bits.field[fieldIdx] = (fieldPtr->filter_pattern_union.igmpType.mask << 8);
+        }
+        break;
+    case FILTER_FIELD_PATTERN_MATCH:
+        for (i = 0; i < fieldPtr->fieldTemplateNo; i++)
+        {
+            tempIdx = (fieldPtr->fieldTemplateIdx[i] & 0xF0) >> 4;
+            fieldIdx = fieldPtr->fieldTemplateIdx[i] & 0x0F;
+
+            aclRule[tempIdx].data_bits.field[fieldIdx] = ((fieldPtr->filter_pattern_union.pattern.value[i / 2] >> (16 * (i % 2))) & 0x0000FFFF);
+            aclRule[tempIdx].care_bits.field[fieldIdx] = ((fieldPtr->filter_pattern_union.pattern.mask[i / 2] >> (16 * (i % 2))) & 0x0000FFFF);
+        }
+        break;
+    case FILTER_FIELD_VID_RANGE:
+    case FILTER_FIELD_IP_RANGE:
+    case FILTER_FIELD_PORT_RANGE:
+    default:
+        tempIdx = (fieldPtr->fieldTemplateIdx[0] & 0xF0) >> 4;
+        fieldIdx = fieldPtr->fieldTemplateIdx[0] & 0x0F;
+
+        aclRule[tempIdx].data_bits.field[fieldIdx] = fieldPtr->filter_pattern_union.inData.value;
+        aclRule[tempIdx].care_bits.field[fieldIdx] = fieldPtr->filter_pattern_union.inData.mask;
+        break;
+    }
+
+    return RT_ERR_OK;
+}
+
+/* Function Name:
+ *      rtk_svlan_checkAndCreateMbr
+ * Description:
+ *      Check and create Member configuration and return index
+ * Input:
+ *      vid  - VLAN id.
+ * Output:
+ *      pIndex  - Member configuration index
+ * Return:
+ *      RT_ERR_OK           - OK
+ *      RT_ERR_FAILED       - Failed
+ *      RT_ERR_SMI          - SMI access error
+ *      RT_ERR_VLAN_VID     - Invalid VLAN ID.
+ *      RT_ERR_TBL_FULL     - Member Configuration table full
+ * Note:
+ *
+ */
+int32_t rtl8367::rtk_svlan_checkAndCreateMbr(uint32_t vid, uint32_t *pIndex)
+{
+    int32_t retVal;
+    uint32_t svidx;
+    uint32_t empty_idx = 0xFFFF;
+    rtl8367c_svlan_memconf_t svlan_cfg;
+
+    /* vid must be 0~4095 */
+    if (vid > RTL8367C_VIDMAX)
+        return RT_ERR_VLAN_VID;
+
+    /* Null pointer check */
+    if (NULL == pIndex)
+        return RT_ERR_NULL_POINTER;
+
+    /* Search exist entry */
+    for (svidx = 0; svidx <= RTL8367C_SVIDXMAX; svidx++)
+    {
+        if (svlan_mbrCfgUsage[svidx] == 1)
+        {
+            if (svlan_mbrCfgVid[svidx] == vid)
+            {
+                /* Found! return index */
+                *pIndex = svidx;
+                return RT_ERR_OK;
+            }
+        }
+        else if (empty_idx == 0xFFFF)
+        {
+            empty_idx = svidx;
+        }
+    }
+
+    if (empty_idx == 0xFFFF)
+    {
+        /* No empty index */
+        return RT_ERR_TBL_FULL;
+    }
+
+    svlan_mbrCfgUsage[empty_idx] = 1;
+    svlan_mbrCfgVid[empty_idx] = vid;
+
+    memset(&svlan_cfg, 0, sizeof(rtl8367c_svlan_memconf_t));
+
+    svlan_cfg.vs_svid = vid;
+    /*for create check*/
+    if (vid == 0)
+    {
+        svlan_cfg.vs_efid = 1;
+    }
+
+    if ((retVal = rtl8367c_setAsicSvlanMemberConfiguration(empty_idx, &svlan_cfg)) != RT_ERR_OK)
+        return retVal;
+
+    *pIndex = empty_idx;
+    return RT_ERR_OK;
+}
+
+void rtl8367::_rtl8367c_aclRuleStSmi2User(rtl8367c_aclrule *pAclUser, rtl8367c_aclrulesmi *pAclSmi)
+{
+    uint8_t *care_ptr, *data_ptr;
+    uint8_t care_tmp, data_tmp;
+    uint32_t i;
+
+    pAclUser->data_bits.active_portmsk = (((pAclSmi->data_bits_ext.rule_info >> 1) & 0x0007) << 8) | ((pAclSmi->data_bits.rule_info >> 8) & 0x00FF);
+    pAclUser->data_bits.type = (pAclSmi->data_bits.rule_info & 0x0007);
+    pAclUser->data_bits.tag_exist = (pAclSmi->data_bits.rule_info & 0x00F8) >> 3;
+
+    care_ptr = (uint8_t *)&pAclSmi->care_bits;
+    data_ptr = (uint8_t *)&pAclSmi->data_bits;
+
+    for (i = 0; i < sizeof(struct acl_rule_smi_st); i++)
+    {
+        care_tmp = *(care_ptr + i) ^ (*(data_ptr + i));
+        data_tmp = *(data_ptr + i);
+
+        *(care_ptr + i) = care_tmp;
+        *(data_ptr + i) = data_tmp;
+    }
+
+    care_ptr = (uint8_t *)&pAclSmi->care_bits_ext;
+    data_ptr = (uint8_t *)&pAclSmi->data_bits_ext;
+    care_tmp = (*care_ptr) ^ (*data_ptr);
+    data_tmp = (*data_ptr);
+    *care_ptr = care_tmp;
+    *data_ptr = data_tmp;
+
+    for (i = 0; i < RTL8367C_ACLRULEFIELDNO; i++)
+        pAclUser->data_bits.field[i] = pAclSmi->data_bits.field[i];
+
+    pAclUser->valid = pAclSmi->valid;
+
+    pAclUser->care_bits.active_portmsk = (((pAclSmi->care_bits_ext.rule_info >> 1) & 0x0007) << 8) | ((pAclSmi->care_bits.rule_info >> 8) & 0x00FF);
+    pAclUser->care_bits.type = (pAclSmi->care_bits.rule_info & 0x0007);
+    pAclUser->care_bits.tag_exist = (pAclSmi->care_bits.rule_info & 0x00F8) >> 3;
+
+    for (i = 0; i < RTL8367C_ACLRULEFIELDNO; i++)
+        pAclUser->care_bits.field[i] = pAclSmi->care_bits.field[i];
+}
+/* Function Name:
+ *      rtl8367c_getAsicAclRule
+ * Description:
+ *      Get acl rule content
+ * Input:
+ *      index   - ACL rule index (0-63) of 64 ACL rules
+ *      pAclRule - ACL rule stucture for setting
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK               - Success
+ *      RT_ERR_SMI              - SMI access error
+ *      RT_ERR_OUT_OF_RANGE     - Invalid ACL rule index (0-63)
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_getAsicAclRule(uint32_t index, rtl8367c_aclrule *pAclRule)
+{
+    rtl8367c_aclrulesmi aclRuleSmi;
+    uint32_t regAddr, regData;
+    int32_t retVal;
+    uint16_t *tableAddr;
+    uint32_t i;
+
+    if (index > RTL8367C_ACLRULEMAX)
+        return RT_ERR_OUT_OF_RANGE;
+
+    memset(&aclRuleSmi, 0x00, sizeof(rtl8367c_aclrulesmi));
+
+    /* Write ACS_ADR register for data bits */
+    regAddr = RTL8367C_TABLE_ACCESS_ADDR_REG;
+    if (index >= 64)
+        regData = RTL8367C_ACLRULETBADDR2(DATABITS, index);
+    else
+        regData = RTL8367C_ACLRULETBADDR(DATABITS, index);
+
+    retVal = rtl8367c_setAsicReg(regAddr, regData);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    /* Write ACS_CMD register */
+    regAddr = RTL8367C_TABLE_ACCESS_CTRL_REG;
+    regData = RTL8367C_TABLE_ACCESS_REG_DATA(TB_OP_READ, TB_TARGET_ACLRULE);
+    retVal = rtl8367c_setAsicRegBits(regAddr, RTL8367C_TABLE_TYPE_MASK | RTL8367C_COMMAND_TYPE_MASK, regData);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    /* Read Data Bits */
+    regAddr = RTL8367C_TABLE_ACCESS_RDDATA_BASE;
+    tableAddr = (uint16_t *)&aclRuleSmi.data_bits;
+    for (i = 0; i < RTL8367C_ACLRULETBLEN; i++)
+    {
+        retVal = rtl8367c_getAsicReg(regAddr, &regData);
+        if (retVal != RT_ERR_OK)
+            return retVal;
+
+        *tableAddr = regData;
+
+        regAddr++;
+        tableAddr++;
+    }
+
+    /* Read Valid Bit */
+    retVal = rtl8367c_getAsicRegBit(RTL8367C_TABLE_ACCESS_RDDATA_REG(RTL8367C_ACLRULETBLEN), 0, &regData);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+    aclRuleSmi.valid = regData & 0x1;
+    /* Read active_portmsk_ext Bits */
+    retVal = rtl8367c_getAsicRegBits(RTL8367C_TABLE_ACCESS_RDDATA_REG(RTL8367C_ACLRULETBLEN), 0x7 << 1, &regData);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+    aclRuleSmi.data_bits_ext.rule_info = (regData % 0x0007) << 1;
+
+    /* Write ACS_ADR register for carebits*/
+    regAddr = RTL8367C_TABLE_ACCESS_ADDR_REG;
+    if (index >= 64)
+        regData = RTL8367C_ACLRULETBADDR2(CAREBITS, index);
+    else
+        regData = RTL8367C_ACLRULETBADDR(CAREBITS, index);
+
+    retVal = rtl8367c_setAsicReg(regAddr, regData);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    /* Write ACS_CMD register */
+    regAddr = RTL8367C_TABLE_ACCESS_CTRL_REG;
+    regData = RTL8367C_TABLE_ACCESS_REG_DATA(TB_OP_READ, TB_TARGET_ACLRULE);
+    retVal = rtl8367c_setAsicRegBits(regAddr, RTL8367C_TABLE_TYPE_MASK | RTL8367C_COMMAND_TYPE_MASK, regData);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    /* Read Care Bits */
+    regAddr = RTL8367C_TABLE_ACCESS_RDDATA_BASE;
+    tableAddr = (uint16_t *)&aclRuleSmi.care_bits;
+    for (i = 0; i < RTL8367C_ACLRULETBLEN; i++)
+    {
+        retVal = rtl8367c_getAsicReg(regAddr, &regData);
+        if (retVal != RT_ERR_OK)
+            return retVal;
+
+        *tableAddr = regData;
+
+        regAddr++;
+        tableAddr++;
+    }
+    /* Read active_portmsk_ext care Bits */
+    retVal = rtl8367c_getAsicRegBits(RTL8367C_TABLE_ACCESS_RDDATA_REG(RTL8367C_ACLRULETBLEN), 0x7 << 1, &regData);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+    aclRuleSmi.care_bits_ext.rule_info = (regData & 0x0007) << 1;
+
+    _rtl8367c_aclRuleStSmi2User(pAclRule, &aclRuleSmi);
+
+    return RT_ERR_OK;
+}
+
+void rtl8367::_rtl8367c_aclActStUser2Smi(rtl8367c_acl_act_t *pAclUser, uint16_t *pAclSmi)
+{
+    pAclSmi[0] |= (pAclUser->cvidx_cact & 0x003F);
+    pAclSmi[0] |= (pAclUser->cact & 0x0003) << 6;
+    pAclSmi[0] |= (pAclUser->svidx_sact & 0x003F) << 8;
+    pAclSmi[0] |= (pAclUser->sact & 0x0003) << 14;
+
+    pAclSmi[1] |= (pAclUser->aclmeteridx & 0x003F);
+    pAclSmi[1] |= (pAclUser->fwdpmask & 0x00FF) << 6;
+    pAclSmi[1] |= (pAclUser->fwdact & 0x0003) << 14;
+
+    pAclSmi[2] |= (pAclUser->pridx & 0x003F);
+    pAclSmi[2] |= (pAclUser->priact & 0x0003) << 6;
+    pAclSmi[2] |= (pAclUser->gpio_pin & 0x000F) << 8;
+    pAclSmi[2] |= (pAclUser->gpio_en & 0x0001) << 12;
+    pAclSmi[2] |= (pAclUser->aclint & 0x0001) << 13;
+    pAclSmi[2] |= (pAclUser->cact_ext & 0x0003) << 14;
+
+    pAclSmi[3] |= (pAclUser->tag_fmt & 0x0003);
+    pAclSmi[3] |= (pAclUser->fwdact_ext & 0x0001) << 2;
+    pAclSmi[3] |= ((pAclUser->cvidx_cact & 0x0040) >> 6) << 3;
+    pAclSmi[3] |= ((pAclUser->svidx_sact & 0x0040) >> 6) << 4;
+    pAclSmi[3] |= ((pAclUser->aclmeteridx & 0x0040) >> 6) << 5;
+    pAclSmi[3] |= ((pAclUser->fwdpmask & 0x0700) >> 8) << 6;
+    pAclSmi[3] |= ((pAclUser->pridx & 0x0040) >> 6) << 9;
+}
+
+/* Function Name:
+ *      rtl8367c_setAsicAclAct
+ * Description:
+ *      Set ACL rule matched Action
+ * Input:
+ *      index   - ACL rule index (0-95) of 96 ACL rules
+ *      pAclAct     - ACL action stucture for setting
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK               - Success
+ *      RT_ERR_SMI              - SMI access error
+ *      RT_ERR_OUT_OF_RANGE     - Invalid ACL rule index (0-95)
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsicAclAct(uint32_t index, rtl8367c_acl_act_t *pAclAct)
+{
+    uint16_t aclActSmi[RTL8367C_ACL_ACT_TABLE_LEN];
+    int32_t retVal;
+    uint32_t regAddr, regData;
+    uint16_t *tableAddr;
+    uint32_t i;
+
+    if (index > RTL8367C_ACLRULEMAX)
+        return RT_ERR_OUT_OF_RANGE;
+
+    memset(aclActSmi, 0x00, sizeof(uint16_t) * RTL8367C_ACL_ACT_TABLE_LEN);
+    _rtl8367c_aclActStUser2Smi(pAclAct, aclActSmi);
+
+    /* Write ACS_ADR register for data bits */
+    regAddr = RTL8367C_TABLE_ACCESS_ADDR_REG;
+    regData = index;
+    retVal = rtl8367c_setAsicReg(regAddr, regData);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    /* Write Data Bits to ACS_DATA registers */
+    tableAddr = aclActSmi;
+    regAddr = RTL8367C_TABLE_ACCESS_WRDATA_BASE;
+
+    for (i = 0; i < RTL8367C_ACLACTTBLEN; i++)
+    {
+        regData = *tableAddr;
+        retVal = rtl8367c_setAsicReg(regAddr, regData);
+        if (retVal != RT_ERR_OK)
+            return retVal;
+
+        regAddr++;
+        tableAddr++;
+    }
+
+    /* Write ACS_CMD register for care bits*/
+    regAddr = RTL8367C_TABLE_ACCESS_CTRL_REG;
+    regData = RTL8367C_TABLE_ACCESS_REG_DATA(TB_OP_WRITE, TB_TARGET_ACLACT);
+    retVal = rtl8367c_setAsicRegBits(regAddr, RTL8367C_TABLE_TYPE_MASK | RTL8367C_COMMAND_TYPE_MASK, regData);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    return RT_ERR_OK;
+}
+
+void rtl8367::_rtl8367c_aclRuleStUser2Smi(rtl8367c_aclrule *pAclUser, rtl8367c_aclrulesmi *pAclSmi)
+{
+    uint8_t *care_ptr, *data_ptr;
+    uint8_t care_tmp, data_tmp;
+    uint32_t i;
+
+    pAclSmi->data_bits_ext.rule_info = ((pAclUser->data_bits.active_portmsk >> 8) & 0x7) << 1;
+    pAclSmi->data_bits.rule_info = ((pAclUser->data_bits.active_portmsk & 0xff) << 8) | ((pAclUser->data_bits.tag_exist & 0x1F) << 3) | (pAclUser->data_bits.type & 0x07);
+
+    for (i = 0; i < RTL8367C_ACLRULEFIELDNO; i++)
+        pAclSmi->data_bits.field[i] = pAclUser->data_bits.field[i];
+
+    pAclSmi->valid = pAclUser->valid;
+
+    pAclSmi->care_bits_ext.rule_info = ((pAclUser->care_bits.active_portmsk >> 8) & 0x7) << 1;
+    pAclSmi->care_bits.rule_info = ((pAclUser->care_bits.active_portmsk & 0xff) << 8) | ((pAclUser->care_bits.tag_exist & 0x1F) << 3) | (pAclUser->care_bits.type & 0x07);
+
+    for (i = 0; i < RTL8367C_ACLRULEFIELDNO; i++)
+        pAclSmi->care_bits.field[i] = pAclUser->care_bits.field[i];
+
+    care_ptr = (uint8_t *)&pAclSmi->care_bits;
+    data_ptr = (uint8_t *)&pAclSmi->data_bits;
+
+    for (i = 0; i < sizeof(struct acl_rule_smi_st); i++)
+    {
+        care_tmp = *(care_ptr + i) & ~(*(data_ptr + i));
+        data_tmp = *(care_ptr + i) & *(data_ptr + i);
+
+        *(care_ptr + i) = care_tmp;
+        *(data_ptr + i) = data_tmp;
+    }
+
+    care_ptr = (uint8_t *)&pAclSmi->care_bits_ext;
+    data_ptr = (uint8_t *)&pAclSmi->data_bits_ext;
+    care_tmp = *care_ptr & ~(*data_ptr);
+    data_tmp = *care_ptr & *data_ptr;
+
+    *care_ptr = care_tmp;
+    *data_ptr = data_tmp;
+}
+
+/* Function Name:
+ *      rtl8367c_setAsicAclRule
+ * Description:
+ *      Set acl rule content
+ * Input:
+ *      index   - ACL rule index (0-95) of 96 ACL rules
+ *      pAclRule - ACL rule stucture for setting
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK               - Success
+ *      RT_ERR_SMI              - SMI access error
+ *      RT_ERR_OUT_OF_RANGE     - Invalid ACL rule index (0-95)
+ * Note:
+ *      System supported 95 shared 289-bit ACL ingress rule. Index was available at range 0-95 only.
+ *      If software want to modify ACL rule, the ACL function should be disable at first or unspecify
+ *      acl action will be executed.
+ *      One ACL rule structure has three parts setting:
+ *      Bit 0-147       Data Bits of this Rule
+ *      Bit 148     Valid Bit
+ *      Bit 149-296 Care Bits of this Rule
+ *      There are four kinds of field in Data Bits and Care Bits: Active Portmask, Type, Tag Exist, and 8 fields
+ */
+int32_t rtl8367::rtl8367c_setAsicAclRule(uint32_t index, rtl8367c_aclrule *pAclRule)
+{
+    rtl8367c_aclrulesmi aclRuleSmi;
+    uint16_t *tableAddr;
+    uint32_t regAddr;
+    uint32_t regData;
+    uint32_t i;
+    int32_t retVal;
+
+    if (index > RTL8367C_ACLRULEMAX)
+        return RT_ERR_OUT_OF_RANGE;
+
+    memset(&aclRuleSmi, 0x00, sizeof(rtl8367c_aclrulesmi));
+
+    _rtl8367c_aclRuleStUser2Smi(pAclRule, &aclRuleSmi);
+
+    /* Write valid bit = 0 */
+    regAddr = RTL8367C_TABLE_ACCESS_ADDR_REG;
+    if (index >= 64)
+        regData = RTL8367C_ACLRULETBADDR2(DATABITS, index);
+    else
+        regData = RTL8367C_ACLRULETBADDR(DATABITS, index);
+    retVal = rtl8367c_setAsicReg(regAddr, regData);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    retVal = rtl8367c_setAsicRegBits(RTL8367C_TABLE_ACCESS_WRDATA_REG(RTL8367C_ACLRULETBLEN), 0x1, 0);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    regAddr = RTL8367C_TABLE_ACCESS_CTRL_REG;
+    regData = RTL8367C_TABLE_ACCESS_REG_DATA(TB_OP_WRITE, TB_TARGET_ACLRULE);
+    retVal = rtl8367c_setAsicReg(regAddr, regData);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    /* Write ACS_ADR register */
+    regAddr = RTL8367C_TABLE_ACCESS_ADDR_REG;
+    if (index >= 64)
+        regData = RTL8367C_ACLRULETBADDR2(CAREBITS, index);
+    else
+        regData = RTL8367C_ACLRULETBADDR(CAREBITS, index);
+    retVal = rtl8367c_setAsicReg(regAddr, regData);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    /* Write Care Bits to ACS_DATA registers */
+    tableAddr = (uint16_t *)&aclRuleSmi.care_bits;
+    regAddr = RTL8367C_TABLE_ACCESS_WRDATA_BASE;
+
+    for (i = 0; i < RTL8367C_ACLRULETBLEN; i++)
+    {
+        regData = *tableAddr;
+        retVal = rtl8367c_setAsicReg(regAddr, regData);
+        if (retVal != RT_ERR_OK)
+            return retVal;
+
+        regAddr++;
+        tableAddr++;
+    }
+    retVal = rtl8367c_setAsicRegBits(RTL8367C_TABLE_ACCESS_WRDATA_REG(RTL8367C_ACLRULETBLEN), (0x0007 << 1), (aclRuleSmi.care_bits_ext.rule_info >> 1) & 0x0007);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    /* Write ACS_CMD register */
+    regAddr = RTL8367C_TABLE_ACCESS_CTRL_REG;
+    regData = RTL8367C_TABLE_ACCESS_REG_DATA(TB_OP_WRITE, TB_TARGET_ACLRULE);
+    retVal = rtl8367c_setAsicRegBits(regAddr, RTL8367C_TABLE_TYPE_MASK | RTL8367C_COMMAND_TYPE_MASK, regData);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    /* Write ACS_ADR register for data bits */
+    regAddr = RTL8367C_TABLE_ACCESS_ADDR_REG;
+    if (index >= 64)
+        regData = RTL8367C_ACLRULETBADDR2(DATABITS, index);
+    else
+        regData = RTL8367C_ACLRULETBADDR(DATABITS, index);
+
+    retVal = rtl8367c_setAsicReg(regAddr, regData);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    /* Write Data Bits to ACS_DATA registers */
+    tableAddr = (uint16_t *)&aclRuleSmi.data_bits;
+    regAddr = RTL8367C_TABLE_ACCESS_WRDATA_BASE;
+
+    for (i = 0; i < RTL8367C_ACLRULETBLEN; i++)
+    {
+        regData = *tableAddr;
+        retVal = rtl8367c_setAsicReg(regAddr, regData);
+        if (retVal != RT_ERR_OK)
+            return retVal;
+
+        regAddr++;
+        tableAddr++;
+    }
+
+    retVal = rtl8367c_setAsicRegBit(RTL8367C_TABLE_ACCESS_WRDATA_REG(RTL8367C_ACLRULETBLEN), 0, aclRuleSmi.valid);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+    retVal = rtl8367c_setAsicRegBits(RTL8367C_TABLE_ACCESS_WRDATA_REG(RTL8367C_ACLRULETBLEN), (0x0007 << 1), (aclRuleSmi.data_bits_ext.rule_info >> 1) & 0x0007);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    /* Write ACS_CMD register for care bits*/
+    regAddr = RTL8367C_TABLE_ACCESS_CTRL_REG;
+    regData = RTL8367C_TABLE_ACCESS_REG_DATA(TB_OP_WRITE, TB_TARGET_ACLRULE);
+    retVal = rtl8367c_setAsicRegBits(regAddr, RTL8367C_TABLE_TYPE_MASK | RTL8367C_COMMAND_TYPE_MASK, regData);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    return RT_ERR_OK;
+}
+
+int32_t rtl8367::rtk_filter_igrAcl_cfg_add(rtk_filter_id_t filter_id, rtk_filter_cfg_t *pFilter_cfg, rtk_filter_action_t *pFilter_action, uint32_t *ruleNum)
+{
+    int32_t retVal;
+    uint32_t careTagData, careTagMask;
+    uint32_t i, vidx, svidx, actType, ruleId;
+    uint32_t aclActCtrl;
+    uint32_t cpuPort;
+    rtk_filter_field_t *fieldPtr;
+    rtl8367c_aclrule aclRule[RTL8367C_ACLTEMPLATENO];
+    rtl8367c_aclrule tempRule;
+    rtl8367c_acl_act_t aclAct;
+    uint32_t noRulesAdd;
+    uint32_t portmask;
+
+    if (filter_id > RTL8367C_ACLRULEMAX)
+        return RT_ERR_ENTRY_INDEX;
+
+    if ((NULL == pFilter_cfg) || (NULL == pFilter_action) || (NULL == ruleNum))
+        return RT_ERR_NULL_POINTER;
+
+    fieldPtr = pFilter_cfg->fieldHead;
+
+    /* init RULE */
+    for (i = 0; i < RTL8367C_ACLTEMPLATENO; i++)
+    {
+        memset(&aclRule[i], 0, sizeof(rtl8367c_aclrule));
+
+        aclRule[i].data_bits.type = i;
+        aclRule[i].care_bits.type = 0x7;
+    }
+
+    while (NULL != fieldPtr)
+    {
+        _rtk_filter_igrAcl_writeDataField(aclRule, fieldPtr);
+
+        fieldPtr = fieldPtr->next;
+    }
+
+    /*set care tag mask in User Defined Field 15*/
+    /*Follow care tag should not be used while ACL template and User defined fields are fully control by system designer*/
+    /*those advanced packet type care tag is used in default template design structure only*/
+    careTagData = 0;
+    careTagMask = 0;
+
+    for (i = CARE_TAG_TCP; i < CARE_TAG_END; i++)
+    {
+        if (pFilter_cfg->careTag.tagType[i].mask)
+            careTagMask = careTagMask | (1 << (i - CARE_TAG_TCP));
+
+        if (pFilter_cfg->careTag.tagType[i].value)
+            careTagData = careTagData | (1 << (i - CARE_TAG_TCP));
+    }
+
+    if (careTagData || careTagMask)
+    {
+        i = 0;
+        while (i < RTL8367C_ACLTEMPLATENO)
+        {
+            if (aclRule[i].valid == 1 && filter_advanceCaretagField[i][0] == 1)
+            {
+
+                aclRule[i].data_bits.field[filter_advanceCaretagField[i][1]] = careTagData & 0xFFFF;
+                aclRule[i].care_bits.field[filter_advanceCaretagField[i][1]] = careTagMask & 0xFFFF;
+                break;
+            }
+            i++;
+        }
+        /*none of previous used template containing field 15*/
+        if (i == RTL8367C_ACLTEMPLATENO)
+        {
+            i = 0;
+            while (i < RTL8367C_ACLTEMPLATENO)
+            {
+                if (filter_advanceCaretagField[i][0] == 1)
+                {
+                    aclRule[i].data_bits.field[filter_advanceCaretagField[i][1]] = careTagData & 0xFFFF;
+                    aclRule[i].care_bits.field[filter_advanceCaretagField[i][1]] = careTagMask & 0xFFFF;
+                    aclRule[i].valid = 1;
+                    break;
+                }
+                i++;
+            }
+        }
+    }
+
+    /*Check rule number*/
+    noRulesAdd = 0;
+    for (i = 0; i < RTL8367C_ACLTEMPLATENO; i++)
+    {
+        if (1 == aclRule[i].valid)
+        {
+            noRulesAdd++;
+        }
+    }
+
+    *ruleNum = noRulesAdd;
+
+    if ((filter_id + noRulesAdd - 1) > RTL8367C_ACLRULEMAX)
+    {
+        return RT_ERR_ENTRY_INDEX;
+    }
+
+    /*set care tag mask in TAG Indicator*/
+    careTagData = 0;
+    careTagMask = 0;
+
+    for (i = 0; i <= CARE_TAG_IPV6; i++)
+    {
+        if (0 == pFilter_cfg->careTag.tagType[i].mask)
+        {
+            careTagMask &= ~(1 << i);
+        }
+        else
+        {
+            careTagMask |= (1 << i);
+            if (0 == pFilter_cfg->careTag.tagType[i].value)
+                careTagData &= ~(1 << i);
+            else
+                careTagData |= (1 << i);
+        }
+    }
+
+    for (i = 0; i < RTL8367C_ACLTEMPLATENO; i++)
+    {
+        aclRule[i].data_bits.tag_exist = (careTagData)&ACL_RULE_CARETAG_MASK;
+        aclRule[i].care_bits.tag_exist = (careTagMask)&ACL_RULE_CARETAG_MASK;
+    }
+
+    RTK_CHK_PORTMASK_VALID(&pFilter_cfg->activeport.value);
+    RTK_CHK_PORTMASK_VALID(&pFilter_cfg->activeport.mask);
+
+    for (i = 0; i < RTL8367C_ACLTEMPLATENO; i++)
+    {
+        if (1 == aclRule[i].valid)
+        {
+            if (rtk_switch_portmask_L2P_get(&pFilter_cfg->activeport.value, &portmask) != RT_ERR_OK)
+                return RT_ERR_PORT_MASK;
+
+            aclRule[i].data_bits.active_portmsk = portmask;
+
+            if (rtk_switch_portmask_L2P_get(&pFilter_cfg->activeport.mask, &portmask) != RT_ERR_OK)
+                return RT_ERR_PORT_MASK;
+
+            aclRule[i].care_bits.active_portmsk = portmask;
+        }
+    }
+
+    if (pFilter_cfg->invert >= FILTER_INVERT_END)
+        return RT_ERR_INPUT;
+
+    /*Last action gets high priority if actions are the same*/
+    memset(&aclAct, 0, sizeof(rtl8367c_acl_act_t));
+    aclActCtrl = 0;
+    for (actType = 0; actType < FILTER_ENACT_END; actType++)
+    {
+        if (pFilter_action->actEnable[actType])
+        {
+            switch (actType)
+            {
+            case FILTER_ENACT_CVLAN_INGRESS:
+                if (pFilter_action->filterCvlanVid > RTL8367C_EVIDMAX)
+                    return RT_ERR_INPUT;
+
+                if ((retVal = rtk_vlan_checkAndCreateMbr(pFilter_action->filterCvlanVid, &vidx)) != RT_ERR_OK)
+                {
+                    return retVal;
+                }
+                aclAct.cact = FILTER_ENACT_CVLAN_TYPE(actType);
+                aclAct.cvidx_cact = vidx;
+
+                if (aclActCtrl & (FILTER_ENACT_CVLAN_MASK))
+                {
+                    if (aclAct.cact_ext == FILTER_ENACT_CACTEXT_TAGONLY)
+                        aclAct.cact_ext = FILTER_ENACT_CACTEXT_BOTHVLANTAG;
+                }
+                else
+                {
+                    aclAct.cact_ext = FILTER_ENACT_CACTEXT_VLANONLY;
+                }
+
+                aclActCtrl |= FILTER_ENACT_CVLAN_MASK;
+                break;
+            case FILTER_ENACT_CVLAN_EGRESS:
+                if (pFilter_action->filterCvlanVid > RTL8367C_EVIDMAX)
+                    return RT_ERR_INPUT;
+
+                if ((retVal = rtk_vlan_checkAndCreateMbr(pFilter_action->filterCvlanVid, &vidx)) != RT_ERR_OK)
+                    return retVal;
+
+                aclAct.cact = FILTER_ENACT_CVLAN_TYPE(actType);
+                aclAct.cvidx_cact = vidx;
+
+                if (aclActCtrl & (FILTER_ENACT_CVLAN_MASK))
+                {
+                    if (aclAct.cact_ext == FILTER_ENACT_CACTEXT_TAGONLY)
+                        aclAct.cact_ext = FILTER_ENACT_CACTEXT_BOTHVLANTAG;
+                }
+                else
+                {
+                    aclAct.cact_ext = FILTER_ENACT_CACTEXT_VLANONLY;
+                }
+
+                aclActCtrl |= FILTER_ENACT_CVLAN_MASK;
+                break;
+            case FILTER_ENACT_CVLAN_SVID:
+
+                aclAct.cact = FILTER_ENACT_CVLAN_TYPE(actType);
+
+                if (aclActCtrl & (FILTER_ENACT_CVLAN_MASK))
+                {
+                    if (aclAct.cact_ext == FILTER_ENACT_CACTEXT_TAGONLY)
+                        aclAct.cact_ext = FILTER_ENACT_CACTEXT_BOTHVLANTAG;
+                }
+                else
+                {
+                    aclAct.cact_ext = FILTER_ENACT_CACTEXT_VLANONLY;
+                }
+
+                aclActCtrl |= FILTER_ENACT_CVLAN_MASK;
+                break;
+            case FILTER_ENACT_POLICING_1:
+                if (pFilter_action->filterPolicingIdx[1] >= ((halCtrl.max_meter_id + 1) + RTL8367C_MAX_LOG_CNT_NUM))
+                    return RT_ERR_INPUT;
+
+                aclAct.cact = FILTER_ENACT_CVLAN_TYPE(actType);
+                aclAct.cvidx_cact = pFilter_action->filterPolicingIdx[1];
+
+                if (aclActCtrl & (FILTER_ENACT_CVLAN_MASK))
+                {
+                    if (aclAct.cact_ext == FILTER_ENACT_CACTEXT_TAGONLY)
+                        aclAct.cact_ext = FILTER_ENACT_CACTEXT_BOTHVLANTAG;
+                }
+                else
+                {
+                    aclAct.cact_ext = FILTER_ENACT_CACTEXT_VLANONLY;
+                }
+
+                aclActCtrl |= FILTER_ENACT_CVLAN_MASK;
+                break;
+
+            case FILTER_ENACT_SVLAN_INGRESS:
+            case FILTER_ENACT_SVLAN_EGRESS:
+
+                if ((retVal = rtk_svlan_checkAndCreateMbr(pFilter_action->filterSvlanVid, &svidx)) != RT_ERR_OK)
+                    return retVal;
+
+                aclAct.sact = FILTER_ENACT_SVLAN_TYPE(actType);
+                aclAct.svidx_sact = svidx;
+                aclActCtrl |= FILTER_ENACT_SVLAN_MASK;
+                break;
+            case FILTER_ENACT_SVLAN_CVID:
+
+                aclAct.sact = FILTER_ENACT_SVLAN_TYPE(actType);
+                aclActCtrl |= FILTER_ENACT_SVLAN_MASK;
+                break;
+            case FILTER_ENACT_POLICING_2:
+                if (pFilter_action->filterPolicingIdx[2] >= ((halCtrl.max_meter_id + 1) + RTL8367C_MAX_LOG_CNT_NUM))
+                    return RT_ERR_INPUT;
+
+                aclAct.sact = FILTER_ENACT_SVLAN_TYPE(actType);
+                aclAct.svidx_sact = pFilter_action->filterPolicingIdx[2];
+                aclActCtrl |= FILTER_ENACT_SVLAN_MASK;
+                break;
+            case FILTER_ENACT_POLICING_0:
+                if (pFilter_action->filterPolicingIdx[0] >= ((halCtrl.max_meter_id + 1) + RTL8367C_MAX_LOG_CNT_NUM))
+                    return RT_ERR_INPUT;
+
+                aclAct.aclmeteridx = pFilter_action->filterPolicingIdx[0];
+                aclActCtrl |= FILTER_ENACT_POLICING_MASK;
+                break;
+            case FILTER_ENACT_PRIORITY:
+            case FILTER_ENACT_1P_REMARK:
+                if (pFilter_action->filterPriority > RTL8367C_PRIMAX)
+                    return RT_ERR_INPUT;
+
+                aclAct.priact = FILTER_ENACT_PRI_TYPE(actType);
+                aclAct.pridx = pFilter_action->filterPriority;
+                aclActCtrl |= FILTER_ENACT_PRIORITY_MASK;
+                break;
+            case FILTER_ENACT_DSCP_REMARK:
+                if (pFilter_action->filterPriority > RTL8367C_DSCPMAX)
+                    return RT_ERR_INPUT;
+
+                aclAct.priact = FILTER_ENACT_PRI_TYPE(actType);
+                aclAct.pridx = pFilter_action->filterPriority;
+                aclActCtrl |= FILTER_ENACT_PRIORITY_MASK;
+                break;
+            case FILTER_ENACT_POLICING_3:
+                if (pFilter_action->filterPriority >= ((halCtrl.max_meter_id + 1) + RTL8367C_MAX_LOG_CNT_NUM))
+                    return RT_ERR_INPUT;
+
+                aclAct.priact = FILTER_ENACT_PRI_TYPE(actType);
+                aclAct.pridx = pFilter_action->filterPolicingIdx[3];
+                aclActCtrl |= FILTER_ENACT_PRIORITY_MASK;
+                break;
+            case FILTER_ENACT_DROP:
+
+                aclAct.fwdact = FILTER_ENACT_FWD_TYPE(FILTER_ENACT_REDIRECT);
+                aclAct.fwdact_ext = 0;
+
+                aclAct.fwdpmask = 0;
+                aclActCtrl |= FILTER_ENACT_FWD_MASK;
+                break;
+            case FILTER_ENACT_REDIRECT:
+                RTK_CHK_PORTMASK_VALID(&pFilter_action->filterPortmask);
+
+                aclAct.fwdact = FILTER_ENACT_FWD_TYPE(actType);
+                aclAct.fwdact_ext = 0;
+
+                if (rtk_switch_portmask_L2P_get(&pFilter_action->filterPortmask, &portmask) != RT_ERR_OK)
+                    return RT_ERR_PORT_MASK;
+                aclAct.fwdpmask = portmask;
+
+                aclActCtrl |= FILTER_ENACT_FWD_MASK;
+                break;
+
+            case FILTER_ENACT_ADD_DSTPORT:
+                RTK_CHK_PORTMASK_VALID(&pFilter_action->filterPortmask);
+
+                aclAct.fwdact = FILTER_ENACT_FWD_TYPE(actType);
+                aclAct.fwdact_ext = 0;
+
+                if (rtk_switch_portmask_L2P_get(&pFilter_action->filterPortmask, &portmask) != RT_ERR_OK)
+                    return RT_ERR_PORT_MASK;
+                aclAct.fwdpmask = portmask;
+
+                aclActCtrl |= FILTER_ENACT_FWD_MASK;
+                break;
+            case FILTER_ENACT_MIRROR:
+                RTK_CHK_PORTMASK_VALID(&pFilter_action->filterPortmask);
+
+                aclAct.fwdact = FILTER_ENACT_FWD_TYPE(actType);
+                aclAct.cact_ext = 0;
+
+                if (rtk_switch_portmask_L2P_get(&pFilter_action->filterPortmask, &portmask) != RT_ERR_OK)
+                    return RT_ERR_PORT_MASK;
+                aclAct.fwdpmask = portmask;
+
+                aclActCtrl |= FILTER_ENACT_FWD_MASK;
+                break;
+            case FILTER_ENACT_TRAP_CPU:
+
+                aclAct.fwdact = FILTER_ENACT_FWD_TYPE(actType);
+                aclAct.fwdact_ext = 0;
+
+                aclActCtrl |= FILTER_ENACT_FWD_MASK;
+                break;
+            case FILTER_ENACT_COPY_CPU:
+                if ((retVal = rtl8367c_getAsicCputagTrapPort(&cpuPort)) != RT_ERR_OK)
+                    return retVal;
+
+                aclAct.fwdact = FILTER_ENACT_FWD_TYPE(FILTER_ENACT_MIRROR);
+                aclAct.fwdact_ext = 0;
+
+                aclAct.fwdpmask = 1 << cpuPort;
+                aclActCtrl |= FILTER_ENACT_FWD_MASK;
+                break;
+            case FILTER_ENACT_ISOLATION:
+                RTK_CHK_PORTMASK_VALID(&pFilter_action->filterPortmask);
+
+                aclAct.fwdact_ext = 1;
+
+                if (rtk_switch_portmask_L2P_get(&pFilter_action->filterPortmask, &portmask) != RT_ERR_OK)
+                    return RT_ERR_PORT_MASK;
+                aclAct.fwdpmask = portmask;
+
+                aclActCtrl |= FILTER_ENACT_FWD_MASK;
+                break;
+
+            case FILTER_ENACT_INTERRUPT:
+
+                aclAct.aclint = 1;
+                aclActCtrl |= FILTER_ENACT_INTGPIO_MASK;
+                break;
+            case FILTER_ENACT_GPO:
+
+                aclAct.gpio_en = 1;
+                aclAct.gpio_pin = pFilter_action->filterPin;
+                aclActCtrl |= FILTER_ENACT_INTGPIO_MASK;
+                break;
+            case FILTER_ENACT_EGRESSCTAG_TAG:
+
+                if (aclActCtrl & (FILTER_ENACT_CVLAN_MASK))
+                {
+                    if (aclAct.cact_ext == FILTER_ENACT_CACTEXT_VLANONLY)
+                        aclAct.cact_ext = FILTER_ENACT_CACTEXT_BOTHVLANTAG;
+                }
+                else
+                {
+                    aclAct.cact_ext = FILTER_ENACT_CACTEXT_TAGONLY;
+                }
+                aclAct.tag_fmt = FILTER_CTAGFMT_TAG;
+                aclActCtrl |= FILTER_ENACT_CVLAN_MASK;
+                break;
+            case FILTER_ENACT_EGRESSCTAG_UNTAG:
+
+                if (aclActCtrl & (FILTER_ENACT_CVLAN_MASK))
+                {
+                    if (aclAct.cact_ext == FILTER_ENACT_CACTEXT_VLANONLY)
+                        aclAct.cact_ext = FILTER_ENACT_CACTEXT_BOTHVLANTAG;
+                }
+                else
+                {
+                    aclAct.cact_ext = FILTER_ENACT_CACTEXT_TAGONLY;
+                }
+                aclAct.tag_fmt = FILTER_CTAGFMT_UNTAG;
+                aclActCtrl |= FILTER_ENACT_CVLAN_MASK;
+                break;
+            case FILTER_ENACT_EGRESSCTAG_KEEP:
+
+                if (aclActCtrl & (FILTER_ENACT_CVLAN_MASK))
+                {
+                    if (aclAct.cact_ext == FILTER_ENACT_CACTEXT_VLANONLY)
+                        aclAct.cact_ext = FILTER_ENACT_CACTEXT_BOTHVLANTAG;
+                }
+                else
+                {
+                    aclAct.cact_ext = FILTER_ENACT_CACTEXT_TAGONLY;
+                }
+                aclAct.tag_fmt = FILTER_CTAGFMT_KEEP;
+                aclActCtrl |= FILTER_ENACT_CVLAN_MASK;
+                break;
+            case FILTER_ENACT_EGRESSCTAG_KEEPAND1PRMK:
+
+                if (aclActCtrl & (FILTER_ENACT_CVLAN_MASK))
+                {
+                    if (aclAct.cact_ext == FILTER_ENACT_CACTEXT_VLANONLY)
+                        aclAct.cact_ext = FILTER_ENACT_CACTEXT_BOTHVLANTAG;
+                }
+                else
+                {
+                    aclAct.cact_ext = FILTER_ENACT_CACTEXT_TAGONLY;
+                }
+                aclAct.tag_fmt = FILTER_CTAGFMT_KEEP1PRMK;
+                aclActCtrl |= FILTER_ENACT_CVLAN_MASK;
+                break;
+            default:
+                return RT_ERR_FILTER_INACL_ACT_NOT_SUPPORT;
+            }
+        }
+    }
+
+    /*check if free ACL rules are enough*/
+    for (i = filter_id; i < (filter_id + noRulesAdd); i++)
+    {
+        if ((retVal = rtl8367c_getAsicAclRule(i, &tempRule)) != RT_ERR_OK)
+            return retVal;
+
+        if (tempRule.valid == 1)
+        {
+            return RT_ERR_TBL_FULL;
+        }
+    }
+
+    ruleId = 0;
+    for (i = 0; i < RTL8367C_ACLTEMPLATENO; i++)
+    {
+        if (aclRule[i].valid == 1)
+        {
+            /* write ACL action control */
+            if ((retVal = rtl8367c_setAsicAclActCtrl(filter_id + ruleId, aclActCtrl)) != RT_ERR_OK)
+                return retVal;
+            /* write ACL action */
+            if ((retVal = rtl8367c_setAsicAclAct(filter_id + ruleId, &aclAct)) != RT_ERR_OK)
+                return retVal;
+
+            /* write ACL not */
+            if ((retVal = rtl8367c_setAsicAclNot(filter_id + ruleId, pFilter_cfg->invert)) != RT_ERR_OK)
+                return retVal;
+            /* write ACL rule */
+            if ((retVal = rtl8367c_setAsicAclRule(filter_id + ruleId, &aclRule[i])) != RT_ERR_OK)
+                return retVal;
+
+            /* only the first rule will be written with input action control, aclActCtrl of other rules will be zero */
+            aclActCtrl = 0;
+            memset(&aclAct, 0, sizeof(rtl8367c_acl_act_t));
+
+            ruleId++;
+        }
+    }
+
+    return RT_ERR_OK;
+}
+
+int32_t rtl8367::rtk_filter_igrAcl_cfg_del(rtk_filter_id_t filter_id)
+{
+    rtl8367c_aclrule initRule;
+    rtl8367c_acl_act_t initAct;
+    int32_t ret;
+
+    if (filter_id > RTL8367C_ACLRULEMAX)
+        return RT_ERR_FILTER_ENTRYIDX;
+
+    memset(&initRule, 0, sizeof(rtl8367c_aclrule));
+    memset(&initAct, 0, sizeof(rtl8367c_acl_act_t));
+
+    if ((ret = rtl8367c_setAsicAclRule(filter_id, &initRule)) != RT_ERR_OK)
+        return ret;
+    if ((ret = rtl8367c_setAsicAclActCtrl(filter_id, FILTER_ENACT_INIT_MASK)) != RT_ERR_OK)
+        return ret;
+    if ((ret = rtl8367c_setAsicAclAct(filter_id, &initAct)) != RT_ERR_OK)
+        return ret;
+    if ((ret = rtl8367c_setAsicAclNot(filter_id, DISABLED)) != RT_ERR_OK)
+        return ret;
+
+    return RT_ERR_OK;
+}
+
+int32_t rtl8367::rtk_filter_igrAcl_cfg_delAll()
+{
+    uint32_t i;
+    int32_t ret;
+
+    for (i = 0; i < RTL8367C_ACLRULENO; i++)
+    {
+        if ((ret = rtl8367c_setAsicAclActCtrl(i, FILTER_ENACT_INIT_MASK)) != RT_ERR_OK)
+            return ret;
+        if ((ret = rtl8367c_setAsicAclNot(i, DISABLED)) != RT_ERR_OK)
+            return ret;
+    }
+
+    return rtl8367c_setAsicRegBit(RTL8367C_REG_ACL_RESET_CFG, RTL8367C_ACL_RESET_CFG_OFFSET, 1);
+}
+
+/* Function Name:
+ *      rtl8367c_getAsicAcl
+ * Description:
+ *      Get rule comparison result inversion / no inversion
+ * Input:
+ *      index   - ACL rule index (0-95) of 95 ACL rules
+ *      pNot    - 1: inverse, 0: don't inverse
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK               - Success
+ *      RT_ERR_SMI              - SMI access error
+ *      RT_ERR_OUT_OF_RANGE     - Invalid ACL rule index (0-95)
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_getAsicAclNot(uint32_t index, uint32_t *pNot)
+{
+    if (index > RTL8367C_ACLRULEMAX)
+        return RT_ERR_OUT_OF_RANGE;
+
+    if (index < 64)
+        return rtl8367c_getAsicRegBit(RTL8367C_ACL_ACTION_CTRL_REG(index), RTL8367C_ACL_OP_NOT_OFFSET(index), pNot);
+    else
+        return rtl8367c_getAsicRegBit(RTL8367C_ACL_ACTION_CTRL2_REG(index), RTL8367C_ACL_OP_NOT_OFFSET(index), pNot);
+}
+
+void rtl8367::_rtl8367c_aclActStSmi2User(rtl8367c_acl_act_t *pAclUser, uint16_t *pAclSmi)
+{
+    pAclUser->cact = (pAclSmi[0] & 0x00C0) >> 6;
+    pAclUser->cvidx_cact = (pAclSmi[0] & 0x003F) | (((pAclSmi[3] & 0x0008) >> 3) << 6);
+
+    pAclUser->sact = (pAclSmi[0] & 0xC000) >> 14;
+    pAclUser->svidx_sact = ((pAclSmi[0] & 0x3F00) >> 8) | (((pAclSmi[3] & 0x0010) >> 4) << 6);
+
+    pAclUser->aclmeteridx = (pAclSmi[1] & 0x003F) | (((pAclSmi[3] & 0x0020) >> 5) << 6);
+
+    pAclUser->fwdact = (pAclSmi[1] & 0xC000) >> 14;
+    pAclUser->fwdpmask = ((pAclSmi[1] & 0x3FC0) >> 6) | (((pAclSmi[3] & 0x01C0) >> 6) << 8);
+
+    pAclUser->priact = (pAclSmi[2] & 0x00C0) >> 6;
+    pAclUser->pridx = (pAclSmi[2] & 0x003F) | (((pAclSmi[3] & 0x0200) >> 9) << 6);
+
+    pAclUser->aclint = (pAclSmi[2] & 0x2000) >> 13;
+    pAclUser->gpio_en = (pAclSmi[2] & 0x1000) >> 12;
+    pAclUser->gpio_pin = (pAclSmi[2] & 0x0F00) >> 8;
+
+    pAclUser->cact_ext = (pAclSmi[2] & 0xC000) >> 14;
+    pAclUser->tag_fmt = (pAclSmi[3] & 0x0003);
+    pAclUser->fwdact_ext = (pAclSmi[3] & 0x0004) >> 2;
+}
+/* Function Name:
+ *      rtl8367c_getAsicAclAct
+ * Description:
+ *      Get ACL rule matched Action
+ * Input:
+ *      index   - ACL rule index (0-95) of 96 ACL rules
+ *      pAclAct     - ACL action stucture for setting
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK               - Success
+ *      RT_ERR_SMI              - SMI access error
+ *      RT_ERR_OUT_OF_RANGE     - Invalid ACL rule index (0-95)
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_getAsicAclAct(uint32_t index, rtl8367c_acl_act_t *pAclAct)
+{
+    uint16_t aclActSmi[RTL8367C_ACL_ACT_TABLE_LEN];
+    int32_t retVal;
+    uint32_t regAddr, regData;
+    uint16_t *tableAddr;
+    uint32_t i;
+
+    if (index > RTL8367C_ACLRULEMAX)
+        return RT_ERR_OUT_OF_RANGE;
+
+    memset(aclActSmi, 0x00, sizeof(uint16_t) * RTL8367C_ACL_ACT_TABLE_LEN);
+
+    /* Write ACS_ADR register for data bits */
+    regAddr = RTL8367C_TABLE_ACCESS_ADDR_REG;
+    regData = index;
+    retVal = rtl8367c_setAsicReg(regAddr, regData);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    /* Write ACS_CMD register */
+    regAddr = RTL8367C_TABLE_ACCESS_CTRL_REG;
+    regData = RTL8367C_TABLE_ACCESS_REG_DATA(TB_OP_READ, TB_TARGET_ACLACT);
+    retVal = rtl8367c_setAsicRegBits(regAddr, RTL8367C_TABLE_TYPE_MASK | RTL8367C_COMMAND_TYPE_MASK, regData);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    /* Read Data Bits */
+    regAddr = RTL8367C_TABLE_ACCESS_RDDATA_BASE;
+    tableAddr = aclActSmi;
+    for (i = 0; i < RTL8367C_ACLACTTBLEN; i++)
+    {
+        retVal = rtl8367c_getAsicReg(regAddr, &regData);
+        if (retVal != RT_ERR_OK)
+            return retVal;
+
+        *tableAddr = regData;
+
+        regAddr++;
+        tableAddr++;
+    }
+
+    _rtl8367c_aclActStSmi2User(pAclAct, aclActSmi);
+
+    return RT_ERR_OK;
+}
+
+/* Function Name:
+ *      rtl8367c_getAsicAclActCtrl
+ * Description:
+ *      Get ACL rule matched Action Control Bits
+ * Input:
+ *      index       - ACL rule index (0-95) of 96 ACL rules
+ *      pAclActCtrl     - 6 ACL Control Bits
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK               - Success
+ *      RT_ERR_SMI              - SMI access error
+ *      RT_ERR_OUT_OF_RANGE     - Invalid ACL rule index (0-95)
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_getAsicAclActCtrl(uint32_t index, uint32_t *pAclActCtrl)
+{
+    int32_t retVal;
+    uint32_t regData;
+
+    if (index > RTL8367C_ACLRULEMAX)
+        return RT_ERR_OUT_OF_RANGE;
+
+    if (index >= 64)
+        retVal = rtl8367c_getAsicRegBits(RTL8367C_ACL_ACTION_CTRL2_REG(index), RTL8367C_ACL_OP_ACTION_MASK(index), &regData);
+    else
+        retVal = rtl8367c_getAsicRegBits(RTL8367C_ACL_ACTION_CTRL_REG(index), RTL8367C_ACL_OP_ACTION_MASK(index), &regData);
+
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    *pAclActCtrl = regData;
+
+    return RT_ERR_OK;
+}
+
+int32_t rtl8367::rtk_filter_igrAcl_cfg_get(rtk_filter_id_t filter_id, rtk_filter_cfg_raw_t *pFilter_cfg, rtk_filter_action_t *pAction)
+{
+    int32_t retVal;
+    uint32_t i, tmp;
+    rtl8367c_aclrule aclRule;
+    rtl8367c_acl_act_t aclAct;
+    uint32_t cpuPort;
+    rtl8367c_acltemplate_t type;
+    rtl8367c_svlan_memconf_t svlan_cfg;
+    rtl8367c_vlanconfiguser vlanMC;
+    uint32_t phyPmask;
+
+    if (NULL == pFilter_cfg || NULL == pAction)
+        return RT_ERR_NULL_POINTER;
+
+    if (filter_id > RTL8367C_ACLRULEMAX)
+        return RT_ERR_ENTRY_INDEX;
+
+    if ((retVal = rtl8367c_getAsicAclRule(filter_id, &aclRule)) != RT_ERR_OK)
+        return retVal;
+
+    /* Check valid */
+    if (aclRule.valid == 0)
+    {
+        pFilter_cfg->valid = DISABLED_RTK;
+        return RT_ERR_OK;
+    }
+
+    phyPmask = aclRule.data_bits.active_portmsk;
+    if (rtk_switch_portmask_P2L_get(phyPmask, &(pFilter_cfg->activeport.value)) != RT_ERR_OK)
+        return RT_ERR_FAILED;
+
+    phyPmask = aclRule.care_bits.active_portmsk;
+    if (rtk_switch_portmask_P2L_get(phyPmask, &(pFilter_cfg->activeport.mask)) != RT_ERR_OK)
+        return RT_ERR_FAILED;
+
+    for (i = 0; i <= CARE_TAG_IPV6; i++)
+    {
+        if (aclRule.data_bits.tag_exist & (1 << i))
+            pFilter_cfg->careTag.tagType[i].value = 1;
+        else
+            pFilter_cfg->careTag.tagType[i].value = 0;
+
+        if (aclRule.care_bits.tag_exist & (1 << i))
+            pFilter_cfg->careTag.tagType[i].mask = 1;
+        else
+            pFilter_cfg->careTag.tagType[i].mask = 0;
+    }
+
+    if (filter_advanceCaretagField[aclRule.data_bits.type][0] == 1)
+    {
+        /* Advanced Care tag setting */
+        for (i = CARE_TAG_TCP; i < CARE_TAG_END; i++)
+        {
+            if (aclRule.data_bits.field[filter_advanceCaretagField[aclRule.data_bits.type][1]] & (0x0001 << (i - CARE_TAG_TCP)))
+                pFilter_cfg->careTag.tagType[i].value = 1;
+            else
+                pFilter_cfg->careTag.tagType[i].value = 0;
+
+            if (aclRule.care_bits.field[filter_advanceCaretagField[aclRule.care_bits.type][1]] & (0x0001 << (i - CARE_TAG_TCP)))
+                pFilter_cfg->careTag.tagType[i].mask = 1;
+            else
+                pFilter_cfg->careTag.tagType[i].mask = 0;
+        }
+    }
+
+    for (i = 0; i < RTL8367C_ACLRULEFIELDNO; i++)
+    {
+        pFilter_cfg->careFieldRaw[i] = aclRule.care_bits.field[i];
+        pFilter_cfg->dataFieldRaw[i] = aclRule.data_bits.field[i];
+    }
+
+    if ((retVal = rtl8367c_getAsicAclNot(filter_id, &tmp)) != RT_ERR_OK)
+        return retVal;
+
+    pFilter_cfg->invert = (rtk_filter_invert_t)tmp;
+
+    pFilter_cfg->valid = (rtk_enable_t)aclRule.valid;
+
+    memset(pAction, 0, sizeof(rtk_filter_action_t));
+
+    if ((retVal = rtl8367c_getAsicAclActCtrl(filter_id, &tmp)) != RT_ERR_OK)
+        return retVal;
+
+    if ((retVal = rtl8367c_getAsicAclAct(filter_id, &aclAct)) != RT_ERR_OK)
+        return retVal;
+
+    if (tmp & FILTER_ENACT_FWD_MASK)
+    {
+        if (1 == aclAct.fwdact_ext)
+        {
+            pAction->actEnable[FILTER_ENACT_ISOLATION] = (rtk_filter_act_enable_t)1;
+
+            phyPmask = aclAct.fwdpmask;
+            if (rtk_switch_portmask_P2L_get(phyPmask, &(pAction->filterPortmask)) != RT_ERR_OK)
+                return RT_ERR_FAILED;
+        }
+        else if (aclAct.fwdact == RTL8367C_ACL_FWD_TRAP)
+        {
+            pAction->actEnable[FILTER_ENACT_TRAP_CPU] = (rtk_filter_act_enable_t)1;
+        }
+        else if (aclAct.fwdact == RTL8367C_ACL_FWD_MIRRORFUNTION)
+        {
+            pAction->actEnable[FILTER_ENACT_MIRROR] = (rtk_filter_act_enable_t)1;
+
+            phyPmask = aclAct.fwdpmask;
+            if (rtk_switch_portmask_P2L_get(phyPmask, &(pAction->filterPortmask)) != RT_ERR_OK)
+                return RT_ERR_FAILED;
+        }
+        else if (aclAct.fwdact == RTL8367C_ACL_FWD_REDIRECT)
+        {
+            if (aclAct.fwdpmask == 0)
+                pAction->actEnable[FILTER_ENACT_DROP] = (rtk_filter_act_enable_t)1;
+            else
+            {
+                pAction->actEnable[FILTER_ENACT_REDIRECT] = (rtk_filter_act_enable_t)1;
+
+                phyPmask = aclAct.fwdpmask;
+                if (rtk_switch_portmask_P2L_get(phyPmask, &(pAction->filterPortmask)) != RT_ERR_OK)
+                    return RT_ERR_FAILED;
+            }
+        }
+        else if (aclAct.fwdact == RTL8367C_ACL_FWD_MIRROR)
+        {
+            if ((retVal = rtl8367c_getAsicCputagTrapPort(&cpuPort)) != RT_ERR_OK)
+                return retVal;
+            if (aclAct.fwdpmask == (1 << cpuPort))
+            {
+                pAction->actEnable[FILTER_ENACT_COPY_CPU] = (rtk_filter_act_enable_t)1;
+            }
+            else
+            {
+                pAction->actEnable[FILTER_ENACT_ADD_DSTPORT] = (rtk_filter_act_enable_t)1;
+
+                phyPmask = aclAct.fwdpmask;
+                if (rtk_switch_portmask_P2L_get(phyPmask, &(pAction->filterPortmask)) != RT_ERR_OK)
+                    return RT_ERR_FAILED;
+            }
+        }
+        else
+        {
+            return RT_ERR_FAILED;
+        }
+    }
+
+    if (tmp & FILTER_ENACT_POLICING_MASK)
+    {
+        pAction->actEnable[FILTER_ENACT_POLICING_0] = (rtk_filter_act_enable_t)1;
+        pAction->filterPolicingIdx[0] = aclAct.aclmeteridx;
+    }
+
+    if (tmp & FILTER_ENACT_PRIORITY_MASK)
+    {
+        if (aclAct.priact == FILTER_ENACT_PRI_TYPE(FILTER_ENACT_PRIORITY))
+        {
+            pAction->actEnable[FILTER_ENACT_PRIORITY] = (rtk_filter_act_enable_t)1;
+            pAction->filterPriority = aclAct.pridx;
+        }
+        else if (aclAct.priact == FILTER_ENACT_PRI_TYPE(FILTER_ENACT_1P_REMARK))
+        {
+            pAction->actEnable[FILTER_ENACT_1P_REMARK] = (rtk_filter_act_enable_t)1;
+            pAction->filterPriority = aclAct.pridx;
+        }
+        else if (aclAct.priact == FILTER_ENACT_PRI_TYPE(FILTER_ENACT_DSCP_REMARK))
+        {
+            pAction->actEnable[FILTER_ENACT_DSCP_REMARK] = (rtk_filter_act_enable_t)1;
+            pAction->filterPriority = aclAct.pridx;
+        }
+        else if (aclAct.priact == FILTER_ENACT_PRI_TYPE(FILTER_ENACT_POLICING_3))
+        {
+            pAction->actEnable[FILTER_ENACT_POLICING_3] = (rtk_filter_act_enable_t)1;
+            pAction->filterPolicingIdx[3] = aclAct.pridx;
+        }
+    }
+
+    if (tmp & FILTER_ENACT_SVLAN_MASK)
+    {
+        if (aclAct.sact == FILTER_ENACT_SVLAN_TYPE(FILTER_ENACT_SVLAN_INGRESS))
+        {
+            if ((retVal = rtl8367c_getAsicSvlanMemberConfiguration(aclAct.svidx_sact, &svlan_cfg)) != RT_ERR_OK)
+                return retVal;
+
+            pAction->actEnable[FILTER_ENACT_SVLAN_INGRESS] = (rtk_filter_act_enable_t)1;
+            pAction->filterSvlanIdx = aclAct.svidx_sact;
+            pAction->filterSvlanVid = svlan_cfg.vs_svid;
+        }
+        else if (aclAct.sact == FILTER_ENACT_SVLAN_TYPE(FILTER_ENACT_SVLAN_EGRESS))
+        {
+            if ((retVal = rtl8367c_getAsicSvlanMemberConfiguration(aclAct.svidx_sact, &svlan_cfg)) != RT_ERR_OK)
+                return retVal;
+
+            pAction->actEnable[FILTER_ENACT_SVLAN_EGRESS] = (rtk_filter_act_enable_t)1;
+            pAction->filterSvlanIdx = aclAct.svidx_sact;
+            pAction->filterSvlanVid = svlan_cfg.vs_svid;
+        }
+        else if (aclAct.sact == FILTER_ENACT_SVLAN_TYPE(FILTER_ENACT_SVLAN_CVID))
+            pAction->actEnable[FILTER_ENACT_SVLAN_CVID] = (rtk_filter_act_enable_t)1;
+        else if (aclAct.sact == FILTER_ENACT_SVLAN_TYPE(FILTER_ENACT_POLICING_2))
+        {
+            pAction->actEnable[FILTER_ENACT_POLICING_2] = (rtk_filter_act_enable_t)1;
+            pAction->filterPolicingIdx[2] = aclAct.svidx_sact;
+        }
+    }
+
+    if (tmp & FILTER_ENACT_CVLAN_MASK)
+    {
+        if (FILTER_ENACT_CACTEXT_TAGONLY == aclAct.cact_ext ||
+            FILTER_ENACT_CACTEXT_BOTHVLANTAG == aclAct.cact_ext)
+        {
+            if (FILTER_CTAGFMT_UNTAG == aclAct.tag_fmt)
+            {
+                pAction->actEnable[FILTER_ENACT_EGRESSCTAG_UNTAG] = (rtk_filter_act_enable_t)1;
+            }
+            else if (FILTER_CTAGFMT_TAG == aclAct.tag_fmt)
+            {
+                pAction->actEnable[FILTER_ENACT_EGRESSCTAG_TAG] = (rtk_filter_act_enable_t)1;
+            }
+            else if (FILTER_CTAGFMT_KEEP == aclAct.tag_fmt)
+            {
+                pAction->actEnable[FILTER_ENACT_EGRESSCTAG_KEEP] = (rtk_filter_act_enable_t)1;
+            }
+            else if (FILTER_CTAGFMT_KEEP1PRMK == aclAct.tag_fmt)
+            {
+                pAction->actEnable[FILTER_ENACT_EGRESSCTAG_KEEPAND1PRMK] = (rtk_filter_act_enable_t)1;
+            }
+        }
+
+        if (FILTER_ENACT_CACTEXT_VLANONLY == aclAct.cact_ext ||
+            FILTER_ENACT_CACTEXT_BOTHVLANTAG == aclAct.cact_ext)
+        {
+            if (aclAct.cact == FILTER_ENACT_CVLAN_TYPE(FILTER_ENACT_CVLAN_INGRESS))
+            {
+                if ((retVal = rtl8367c_getAsicVlanMemberConfig(aclAct.cvidx_cact, &vlanMC)) != RT_ERR_OK)
+                    return retVal;
+
+                pAction->actEnable[FILTER_ENACT_CVLAN_INGRESS] = (rtk_filter_act_enable_t)1;
+                pAction->filterCvlanIdx = aclAct.cvidx_cact;
+                pAction->filterCvlanVid = vlanMC.evid;
+            }
+            else if (aclAct.cact == FILTER_ENACT_CVLAN_TYPE(FILTER_ENACT_CVLAN_EGRESS))
+            {
+                if ((retVal = rtl8367c_getAsicVlanMemberConfig(aclAct.cvidx_cact, &vlanMC)) != RT_ERR_OK)
+                    return retVal;
+
+                pAction->actEnable[FILTER_ENACT_CVLAN_EGRESS] = (rtk_filter_act_enable_t)1;
+                pAction->filterCvlanIdx = aclAct.cvidx_cact;
+                pAction->filterCvlanVid = vlanMC.evid;
+            }
+            else if (aclAct.cact == FILTER_ENACT_CVLAN_TYPE(FILTER_ENACT_CVLAN_SVID))
+            {
+                pAction->actEnable[FILTER_ENACT_CVLAN_SVID] = (rtk_filter_act_enable_t)1;
+            }
+            else if (aclAct.cact == FILTER_ENACT_CVLAN_TYPE(FILTER_ENACT_POLICING_1))
+            {
+                pAction->actEnable[FILTER_ENACT_POLICING_1] = (rtk_filter_act_enable_t)1;
+                pAction->filterPolicingIdx[1] = aclAct.cvidx_cact;
+            }
+        }
+    }
+
+    if (tmp & FILTER_ENACT_INTGPIO_MASK)
+    {
+        if (1 == aclAct.aclint)
+        {
+            pAction->actEnable[FILTER_ENACT_INTERRUPT] = (rtk_filter_act_enable_t)1;
+        }
+
+        if (1 == aclAct.gpio_en)
+        {
+            pAction->actEnable[FILTER_ENACT_GPO] = (rtk_filter_act_enable_t)1;
+            pAction->filterPin = aclAct.gpio_pin;
+        }
+    }
+
+    /* Get field type of RAW data */
+    if ((retVal = rtl8367c_getAsicAclTemplate(aclRule.data_bits.type, &type)) != RT_ERR_OK)
+        return retVal;
+
+    for (i = 0; i < RTL8367C_ACLRULEFIELDNO; i++)
+    {
+        pFilter_cfg->fieldRawType[i] = (rtk_filter_field_type_raw_t)type.field[i];
+    } /* end of for(i...) */
+
+    return RT_ERR_OK;
+}
