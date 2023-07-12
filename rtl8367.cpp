@@ -253,7 +253,7 @@ int32_t rtl8367::rtl8367c_getAsicPHYReg(uint32_t phyNo, uint32_t phyAddr, uint32
  * Note:
  *      API will return auto negotiation status of phy.
  */
-int32_t rtl8367::getPortStatus(uint8_t port, uint8_t &pLinkStatus, uint8_t &pSpeed, uint8_t &pDuplex)
+int32_t rtl8367::rtk_port_phyStatus_get(uint8_t port, uint8_t &pLinkStatus, uint8_t &pSpeed, uint8_t &pDuplex)
 {
     int32_t retVal;
     uint32_t phyData;
@@ -2686,6 +2686,1884 @@ int32_t rtl8367::rtk_svlan_untag_action_set(rtk_svlan_untag_action_t action, uin
 
         return RT_ERR_SVLAN_ENTRY_NOT_FOUND;
     }
+
+    return RT_ERR_OK;
+}
+
+/* Function Name:
+ *      rtl8367c_setAsicSvlanUnmatchVlan
+ * Description:
+ *      Set default ingress unmatch SVLAN
+ * Input:
+ *      index   - index SVLAN member configuration
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK                   - Success
+ *      RT_ERR_SMI                  - SMI access error
+ *      RT_ERR_SVLAN_ENTRY_INDEX    - Invalid SVLAN index parameter
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsicSvlanUnmatchVlan(uint32_t index)
+{
+    if (index > RTL8367C_SVIDXMAX)
+        return RT_ERR_SVLAN_ENTRY_INDEX;
+
+    return rtl8367c_setAsicRegBits(RTL8367C_REG_SVLAN_UNTAG_UNMAT_CFG, RTL8367C_VS_UNMAT_SVIDX_MASK, index);
+}
+
+int32_t rtl8367::rtk_svlan_unmatch_action_set(rtk_svlan_unmatch_action_t action, uint32_t svid)
+{
+    int32_t retVal;
+    uint32_t i;
+    rtl8367c_svlan_memconf_t svlanMemConf;
+
+    if (action >= UNMATCH_END)
+        return RT_ERR_OUT_OF_RANGE;
+
+    if (action == UNMATCH_ASSIGN)
+    {
+        if (svid > RTL8367C_VIDMAX)
+            return RT_ERR_SVLAN_VID;
+    }
+
+    if ((retVal = rtl8367c_setAsicSvlanIngressUnmatch((uint32_t)action)) != RT_ERR_OK)
+        return retVal;
+
+    if (action == UNMATCH_ASSIGN)
+    {
+        for (i = 0; i < RTL8367C_SVIDXNO; i++)
+        {
+            if ((retVal = rtl8367c_getAsicSvlanMemberConfiguration(i, &svlanMemConf)) != RT_ERR_OK)
+                return retVal;
+
+            if (svid == svlanMemConf.vs_svid)
+            {
+                if ((retVal = rtl8367c_setAsicSvlanUnmatchVlan(i)) != RT_ERR_OK)
+                    return retVal;
+
+                return RT_ERR_OK;
+            }
+        }
+
+        return RT_ERR_SVLAN_ENTRY_NOT_FOUND;
+    }
+
+    return RT_ERR_OK;
+}
+
+/* Function Name:
+ *      rtl8367c_setAsicSvlanDmacCvidSel
+ * Description:
+ *      Set downstream CVID decision by DMAC
+ * Input:
+ *      port        - Physical port number (0~7)
+ *      enabled     - 0: DISABLED_RTK, 1:enabled
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK       - Success
+ *      RT_ERR_SMI      - SMI access error
+ *      RT_ERR_PORT_ID  - Invalid port number
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsicSvlanDmacCvidSel(uint32_t port, uint32_t enabled)
+{
+    if (port > RTL8367C_PORTIDMAX)
+        return RT_ERR_PORT_ID;
+
+    if (port < 8)
+        return rtl8367c_setAsicRegBit(RTL8367C_REG_SVLAN_CFG, RTL8367C_VS_PORT0_DMACVIDSEL_OFFSET + port, enabled);
+    else
+        return rtl8367c_setAsicRegBit(RTL8367C_REG_SVLAN_CFG_EXT, RTL8367C_VS_PORT8_DMACVIDSEL_OFFSET + (port - 8), enabled);
+}
+
+int32_t rtl8367::rtk_svlan_dmac_vidsel_set(rtk_port_t port, rtk_enable_t enable)
+{
+    int32_t retVal;
+
+    /* Check port Valid */
+    RTK_CHK_PORT_VALID(port);
+
+    if (enable >= RTK_ENABLE_END)
+        return RT_ERR_ENABLE;
+
+    if ((retVal = rtl8367c_setAsicSvlanDmacCvidSel(rtk_switch_port_L2P_get(port), enable)) != RT_ERR_OK)
+        return retVal;
+
+    return RT_ERR_OK;
+}
+
+//----------------- LOOK UP TABLE -----------------//
+
+void rtl8367::_rtl8367c_fdbStUser2Smi(rtl8367c_luttb *pLutSt, uint16_t *pFdbSmi)
+{
+    /* L3 lookup */
+    if (pLutSt->l3lookup)
+    {
+        if (pLutSt->l3vidlookup)
+        {
+            pFdbSmi[0] = (pLutSt->sip & 0x0000FFFF);
+            pFdbSmi[1] = (pLutSt->sip & 0xFFFF0000) >> 16;
+
+            pFdbSmi[2] = (pLutSt->dip & 0x0000FFFF);
+            pFdbSmi[3] = (pLutSt->dip & 0x0FFF0000) >> 16;
+
+            pFdbSmi[3] |= (pLutSt->l3lookup & 0x0001) << 12;
+            pFdbSmi[3] |= (pLutSt->l3vidlookup & 0x0001) << 13;
+            pFdbSmi[3] |= ((pLutSt->mbr & 0x0300) >> 8) << 14;
+
+            pFdbSmi[4] |= (pLutSt->mbr & 0x00FF);
+            pFdbSmi[4] |= (pLutSt->l3_vid & 0x00FF) << 8;
+
+            pFdbSmi[5] |= ((pLutSt->l3_vid & 0x0F00) >> 8);
+            pFdbSmi[5] |= (pLutSt->nosalearn & 0x0001) << 5;
+            pFdbSmi[5] |= ((pLutSt->mbr & 0x0400) >> 10) << 7;
+        }
+        else
+        {
+            pFdbSmi[0] = (pLutSt->sip & 0x0000FFFF);
+            pFdbSmi[1] = (pLutSt->sip & 0xFFFF0000) >> 16;
+
+            pFdbSmi[2] = (pLutSt->dip & 0x0000FFFF);
+            pFdbSmi[3] = (pLutSt->dip & 0x0FFF0000) >> 16;
+
+            pFdbSmi[3] |= (pLutSt->l3lookup & 0x0001) << 12;
+            pFdbSmi[3] |= (pLutSt->l3vidlookup & 0x0001) << 13;
+            pFdbSmi[3] |= ((pLutSt->mbr & 0x0300) >> 8) << 14;
+
+            pFdbSmi[4] |= (pLutSt->mbr & 0x00FF);
+            pFdbSmi[4] |= (pLutSt->igmpidx & 0x00FF) << 8;
+
+            pFdbSmi[5] |= (pLutSt->igmp_asic & 0x0001);
+            pFdbSmi[5] |= (pLutSt->lut_pri & 0x0007) << 1;
+            pFdbSmi[5] |= (pLutSt->fwd_en & 0x0001) << 4;
+            pFdbSmi[5] |= (pLutSt->nosalearn & 0x0001) << 5;
+            pFdbSmi[5] |= ((pLutSt->mbr & 0x0400) >> 10) << 7;
+        }
+    }
+    else if (pLutSt->mac.octet[0] & 0x01) /*Multicast L2 Lookup*/
+    {
+        pFdbSmi[0] |= pLutSt->mac.octet[5];
+        pFdbSmi[0] |= pLutSt->mac.octet[4] << 8;
+
+        pFdbSmi[1] |= pLutSt->mac.octet[3];
+        pFdbSmi[1] |= pLutSt->mac.octet[2] << 8;
+
+        pFdbSmi[2] |= pLutSt->mac.octet[1];
+        pFdbSmi[2] |= pLutSt->mac.octet[0] << 8;
+
+        pFdbSmi[3] |= pLutSt->cvid_fid;
+        pFdbSmi[3] |= (pLutSt->l3lookup & 0x0001) << 12;
+        pFdbSmi[3] |= (pLutSt->ivl_svl & 0x0001) << 13;
+        pFdbSmi[3] |= ((pLutSt->mbr & 0x0300) >> 8) << 14;
+
+        pFdbSmi[4] |= (pLutSt->mbr & 0x00FF);
+        pFdbSmi[4] |= (pLutSt->igmpidx & 0x00FF) << 8;
+
+        pFdbSmi[5] |= pLutSt->igmp_asic;
+        pFdbSmi[5] |= (pLutSt->lut_pri & 0x0007) << 1;
+        pFdbSmi[5] |= (pLutSt->fwd_en & 0x0001) << 4;
+        pFdbSmi[5] |= (pLutSt->nosalearn & 0x0001) << 5;
+        pFdbSmi[5] |= ((pLutSt->mbr & 0x0400) >> 10) << 7;
+    }
+    else /*Asic auto-learning*/
+    {
+        pFdbSmi[0] |= pLutSt->mac.octet[5];
+        pFdbSmi[0] |= pLutSt->mac.octet[4] << 8;
+
+        pFdbSmi[1] |= pLutSt->mac.octet[3];
+        pFdbSmi[1] |= pLutSt->mac.octet[2] << 8;
+
+        pFdbSmi[2] |= pLutSt->mac.octet[1];
+        pFdbSmi[2] |= pLutSt->mac.octet[0] << 8;
+
+        pFdbSmi[3] |= pLutSt->cvid_fid;
+        pFdbSmi[3] |= (pLutSt->l3lookup & 0x0001) << 12;
+        pFdbSmi[3] |= (pLutSt->ivl_svl & 0x0001) << 13;
+        pFdbSmi[3] |= ((pLutSt->spa & 0x0008) >> 3) << 15;
+
+        pFdbSmi[4] |= pLutSt->efid;
+        pFdbSmi[4] |= (pLutSt->fid & 0x000F) << 3;
+        pFdbSmi[4] |= (pLutSt->sa_en & 0x0001) << 7;
+        pFdbSmi[4] |= (pLutSt->spa & 0x0007) << 8;
+        pFdbSmi[4] |= (pLutSt->age & 0x0007) << 11;
+        pFdbSmi[4] |= (pLutSt->auth & 0x0001) << 14;
+        pFdbSmi[4] |= (pLutSt->sa_block & 0x0001) << 15;
+
+        pFdbSmi[5] |= pLutSt->da_block;
+        pFdbSmi[5] |= (pLutSt->lut_pri & 0x0007) << 1;
+        pFdbSmi[5] |= (pLutSt->fwd_en & 0x0001) << 4;
+        pFdbSmi[5] |= (pLutSt->nosalearn & 0x0001) << 5;
+    }
+}
+
+void rtl8367::_rtl8367c_fdbStSmi2User(rtl8367c_luttb *pLutSt, uint16_t *pFdbSmi)
+{
+    /*L3 lookup*/
+    if (pFdbSmi[3] & 0x1000)
+    {
+        if (pFdbSmi[3] & 0x2000)
+        {
+            pLutSt->sip = pFdbSmi[0] | (pFdbSmi[1] << 16);
+            pLutSt->dip = 0xE0000000 | pFdbSmi[2] | ((pFdbSmi[3] & 0x0FFF) << 16);
+
+            pLutSt->mbr = (pFdbSmi[4] & 0x00FF) | (((pFdbSmi[3] & 0xC000) >> 14) << 8) | (((pFdbSmi[5] & 0x0080) >> 7) << 10);
+            pLutSt->l3_vid = ((pFdbSmi[4] & 0xFF00) >> 8) | (pFdbSmi[5] & 0x000F);
+
+            pLutSt->l3lookup = (pFdbSmi[3] & 0x1000) >> 12;
+            pLutSt->l3vidlookup = (pFdbSmi[3] & 0x2000) >> 13;
+            pLutSt->nosalearn = (pFdbSmi[5] & 0x0020) >> 5;
+        }
+        else
+        {
+            pLutSt->sip = pFdbSmi[0] | (pFdbSmi[1] << 16);
+            pLutSt->dip = 0xE0000000 | pFdbSmi[2] | ((pFdbSmi[3] & 0x0FFF) << 16);
+
+            pLutSt->lut_pri = (pFdbSmi[5] & 0x000E) >> 1;
+            pLutSt->fwd_en = (pFdbSmi[5] & 0x0010) >> 4;
+
+            pLutSt->mbr = (pFdbSmi[4] & 0x00FF) | (((pFdbSmi[3] & 0xC000) >> 14) << 8) | (((pFdbSmi[5] & 0x0080) >> 7) << 10);
+            pLutSt->igmpidx = (pFdbSmi[4] & 0xFF00) >> 8;
+
+            pLutSt->igmp_asic = (pFdbSmi[5] & 0x0001);
+            pLutSt->l3lookup = (pFdbSmi[3] & 0x1000) >> 12;
+            pLutSt->nosalearn = (pFdbSmi[5] & 0x0020) >> 5;
+        }
+    }
+    else if (pFdbSmi[2] & 0x0100) /*Multicast L2 Lookup*/
+    {
+        pLutSt->mac.octet[0] = (pFdbSmi[2] & 0xFF00) >> 8;
+        pLutSt->mac.octet[1] = (pFdbSmi[2] & 0x00FF);
+        pLutSt->mac.octet[2] = (pFdbSmi[1] & 0xFF00) >> 8;
+        pLutSt->mac.octet[3] = (pFdbSmi[1] & 0x00FF);
+        pLutSt->mac.octet[4] = (pFdbSmi[0] & 0xFF00) >> 8;
+        pLutSt->mac.octet[5] = (pFdbSmi[0] & 0x00FF);
+
+        pLutSt->cvid_fid = pFdbSmi[3] & 0x0FFF;
+        pLutSt->lut_pri = (pFdbSmi[5] & 0x000E) >> 1;
+        pLutSt->fwd_en = (pFdbSmi[5] & 0x0010) >> 4;
+
+        pLutSt->mbr = (pFdbSmi[4] & 0x00FF) | (((pFdbSmi[3] & 0xC000) >> 14) << 8) | (((pFdbSmi[5] & 0x0080) >> 7) << 10);
+        pLutSt->igmpidx = (pFdbSmi[4] & 0xFF00) >> 8;
+
+        pLutSt->igmp_asic = (pFdbSmi[5] & 0x0001);
+        pLutSt->l3lookup = (pFdbSmi[3] & 0x1000) >> 12;
+        pLutSt->ivl_svl = (pFdbSmi[3] & 0x2000) >> 13;
+        pLutSt->nosalearn = (pFdbSmi[5] & 0x0020) >> 5;
+    }
+    else /*Asic auto-learning*/
+    {
+        pLutSt->mac.octet[0] = (pFdbSmi[2] & 0xFF00) >> 8;
+        pLutSt->mac.octet[1] = (pFdbSmi[2] & 0x00FF);
+        pLutSt->mac.octet[2] = (pFdbSmi[1] & 0xFF00) >> 8;
+        pLutSt->mac.octet[3] = (pFdbSmi[1] & 0x00FF);
+        pLutSt->mac.octet[4] = (pFdbSmi[0] & 0xFF00) >> 8;
+        pLutSt->mac.octet[5] = (pFdbSmi[0] & 0x00FF);
+
+        pLutSt->cvid_fid = pFdbSmi[3] & 0x0FFF;
+        pLutSt->lut_pri = (pFdbSmi[5] & 0x000E) >> 1;
+        pLutSt->fwd_en = (pFdbSmi[5] & 0x0010) >> 4;
+
+        pLutSt->sa_en = (pFdbSmi[4] & 0x0080) >> 7;
+        pLutSt->auth = (pFdbSmi[4] & 0x4000) >> 14;
+        pLutSt->spa = ((pFdbSmi[4] & 0x0700) >> 8) | (((pFdbSmi[3] & 0x8000) >> 15) << 3);
+        pLutSt->age = (pFdbSmi[4] & 0x3800) >> 11;
+        pLutSt->fid = (pFdbSmi[4] & 0x0078) >> 3;
+        pLutSt->efid = (pFdbSmi[4] & 0x0007);
+        pLutSt->sa_block = (pFdbSmi[4] & 0x8000) >> 15;
+
+        pLutSt->da_block = (pFdbSmi[5] & 0x0001);
+        pLutSt->l3lookup = (pFdbSmi[3] & 0x1000) >> 12;
+        pLutSt->ivl_svl = (pFdbSmi[3] & 0x2000) >> 13;
+        pLutSt->nosalearn = (pFdbSmi[3] & 0x0020) >> 5;
+    }
+}
+/* Function Name:
+ *      rtl8367c_getAsicL2LookupTb
+ * Description:
+ *      Get filtering database entry
+ * Input:
+ *      pL2Table    - L2 table entry writing to 2K+64 filtering database
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK               - Success
+ *      RT_ERR_SMI              - SMI access error
+ *      RT_ERR_INPUT            - Invalid input parameter
+ *      RT_ERR_BUSYWAIT_TIMEOUT - LUT is busy at retrieving
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_getAsicL2LookupTb(uint32_t method, rtl8367c_luttb *pL2Table)
+{
+    int32_t retVal;
+    uint32_t regData;
+    uint16_t *accessPtr;
+    uint32_t i;
+    uint16_t smil2Table[RTL8367C_LUT_TABLE_SIZE];
+    uint32_t busyCounter;
+    uint32_t tblCmd;
+
+    if (pL2Table->wait_time == 0)
+        busyCounter = RTL8367C_LUT_BUSY_CHECK_NO;
+    else
+        busyCounter = pL2Table->wait_time;
+
+    while (busyCounter)
+    {
+        retVal = rtl8367c_getAsicRegBit(RTL8367C_TABLE_ACCESS_STATUS_REG, RTL8367C_TABLE_LUT_ADDR_BUSY_FLAG_OFFSET, &regData);
+        if (retVal != RT_ERR_OK)
+            return retVal;
+
+        pL2Table->lookup_busy = regData;
+        if (!pL2Table->lookup_busy)
+            break;
+
+        busyCounter--;
+        if (busyCounter == 0)
+            return RT_ERR_BUSYWAIT_TIMEOUT;
+    }
+
+    tblCmd = (method << RTL8367C_ACCESS_METHOD_OFFSET) & RTL8367C_ACCESS_METHOD_MASK;
+
+    switch (method)
+    {
+    case LUTREADMETHOD_ADDRESS:
+    case LUTREADMETHOD_NEXT_ADDRESS:
+    case LUTREADMETHOD_NEXT_L2UC:
+    case LUTREADMETHOD_NEXT_L2MC:
+    case LUTREADMETHOD_NEXT_L3MC:
+    case LUTREADMETHOD_NEXT_L2L3MC:
+        retVal = rtl8367c_setAsicReg(RTL8367C_TABLE_ACCESS_ADDR_REG, pL2Table->address);
+        if (retVal != RT_ERR_OK)
+            return retVal;
+        break;
+    case LUTREADMETHOD_MAC:
+        memset(smil2Table, 0x00, sizeof(uint16_t) * RTL8367C_LUT_TABLE_SIZE);
+        _rtl8367c_fdbStUser2Smi(pL2Table, smil2Table);
+
+        accessPtr = smil2Table;
+        regData = *accessPtr;
+        for (i = 0; i < RTL8367C_LUT_ENTRY_SIZE; i++)
+        {
+            retVal = rtl8367c_setAsicReg(RTL8367C_TABLE_ACCESS_WRDATA_BASE + i, regData);
+            if (retVal != RT_ERR_OK)
+                return retVal;
+
+            accessPtr++;
+            regData = *accessPtr;
+        }
+        break;
+    case LUTREADMETHOD_NEXT_L2UCSPA:
+        retVal = rtl8367c_setAsicReg(RTL8367C_TABLE_ACCESS_ADDR_REG, pL2Table->address);
+        if (retVal != RT_ERR_OK)
+            return retVal;
+
+        tblCmd = tblCmd | ((pL2Table->spa << RTL8367C_TABLE_ACCESS_CTRL_SPA_OFFSET) & RTL8367C_TABLE_ACCESS_CTRL_SPA_MASK);
+
+        break;
+    default:
+        return RT_ERR_INPUT;
+    }
+
+    tblCmd = tblCmd | ((RTL8367C_TABLE_ACCESS_REG_DATA(TB_OP_READ, TB_TARGET_L2)) & (RTL8367C_TABLE_TYPE_MASK | RTL8367C_COMMAND_TYPE_MASK));
+    /* Read Command */
+    retVal = rtl8367c_setAsicReg(RTL8367C_TABLE_ACCESS_CTRL_REG, tblCmd);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    if (pL2Table->wait_time == 0)
+        busyCounter = RTL8367C_LUT_BUSY_CHECK_NO;
+    else
+        busyCounter = pL2Table->wait_time;
+
+    while (busyCounter)
+    {
+        retVal = rtl8367c_getAsicRegBit(RTL8367C_TABLE_ACCESS_STATUS_REG, RTL8367C_TABLE_LUT_ADDR_BUSY_FLAG_OFFSET, &regData);
+        if (retVal != RT_ERR_OK)
+            return retVal;
+
+        pL2Table->lookup_busy = regData;
+        if (!pL2Table->lookup_busy)
+            break;
+
+        busyCounter--;
+        if (busyCounter == 0)
+            return RT_ERR_BUSYWAIT_TIMEOUT;
+    }
+
+    retVal = rtl8367c_getAsicRegBit(RTL8367C_TABLE_ACCESS_STATUS_REG, RTL8367C_HIT_STATUS_OFFSET, &regData);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+    pL2Table->lookup_hit = regData;
+    if (!pL2Table->lookup_hit)
+        return RT_ERR_L2_ENTRY_NOTFOUND;
+
+    /*Read access address*/
+    // retVal = rtl8367c_getAsicRegBits(RTL8367C_TABLE_ACCESS_STATUS_REG, RTL8367C_TABLE_LUT_ADDR_TYPE_MASK | RTL8367C_TABLE_LUT_ADDR_ADDRESS_MASK,&regData);
+    retVal = rtl8367c_getAsicReg(RTL8367C_TABLE_ACCESS_STATUS_REG, &regData);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    pL2Table->address = (regData & 0x7ff) | ((regData & 0x4000) >> 3) | ((regData & 0x800) << 1);
+
+    /*read L2 entry */
+    memset(smil2Table, 0x00, sizeof(uint16_t) * RTL8367C_LUT_TABLE_SIZE);
+
+    accessPtr = smil2Table;
+
+    for (i = 0; i < RTL8367C_LUT_ENTRY_SIZE; i++)
+    {
+        retVal = rtl8367c_getAsicReg(RTL8367C_TABLE_ACCESS_RDDATA_BASE + i, &regData);
+        if (retVal != RT_ERR_OK)
+            return retVal;
+
+        *accessPtr = regData;
+
+        accessPtr++;
+    }
+
+    _rtl8367c_fdbStSmi2User(pL2Table, smil2Table);
+
+    return RT_ERR_OK;
+}
+
+/* Function Name:
+ *      rtl8367c_setAsicL2LookupTb
+ * Description:
+ *      Set filtering database entry
+ * Input:
+ *      pL2Table    - L2 table entry writing to 8K+64 filtering database
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK   - Success
+ *      RT_ERR_SMI  - SMI access error
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsicL2LookupTb(rtl8367c_luttb *pL2Table)
+{
+    int32_t retVal;
+    uint32_t regData;
+    uint16_t *accessPtr;
+    uint32_t i;
+    uint16_t smil2Table[RTL8367C_LUT_TABLE_SIZE];
+    uint32_t tblCmd;
+    uint32_t busyCounter;
+
+    memset(smil2Table, 0x00, sizeof(uint16_t) * RTL8367C_LUT_TABLE_SIZE);
+    _rtl8367c_fdbStUser2Smi(pL2Table, smil2Table);
+
+    if (pL2Table->wait_time == 0)
+        busyCounter = RTL8367C_LUT_BUSY_CHECK_NO;
+    else
+        busyCounter = pL2Table->wait_time;
+
+    while (busyCounter)
+    {
+        retVal = rtl8367c_getAsicRegBit(RTL8367C_TABLE_ACCESS_STATUS_REG, RTL8367C_TABLE_LUT_ADDR_BUSY_FLAG_OFFSET, &regData);
+        if (retVal != RT_ERR_OK)
+            return retVal;
+
+        pL2Table->lookup_busy = regData;
+        if (!regData)
+            break;
+
+        busyCounter--;
+        if (busyCounter == 0)
+            return RT_ERR_BUSYWAIT_TIMEOUT;
+    }
+
+    accessPtr = smil2Table;
+
+    for (i = 0; i < RTL8367C_LUT_ENTRY_SIZE; i++)
+    {
+        regData = *(accessPtr + i);
+        retVal = rtl8367c_setAsicReg(RTL8367C_TABLE_ACCESS_WRDATA_BASE + i, regData);
+        if (retVal != RT_ERR_OK)
+            return retVal;
+    }
+
+    tblCmd = (RTL8367C_TABLE_ACCESS_REG_DATA(TB_OP_WRITE, TB_TARGET_L2)) & (RTL8367C_TABLE_TYPE_MASK | RTL8367C_COMMAND_TYPE_MASK);
+    /* Write Command */
+    retVal = rtl8367c_setAsicReg(RTL8367C_TABLE_ACCESS_CTRL_REG, tblCmd);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    if (pL2Table->wait_time == 0)
+        busyCounter = RTL8367C_LUT_BUSY_CHECK_NO;
+    else
+        busyCounter = pL2Table->wait_time;
+
+    while (busyCounter)
+    {
+        retVal = rtl8367c_getAsicRegBit(RTL8367C_TABLE_ACCESS_STATUS_REG, RTL8367C_TABLE_LUT_ADDR_BUSY_FLAG_OFFSET, &regData);
+        if (retVal != RT_ERR_OK)
+            return retVal;
+
+        pL2Table->lookup_busy = regData;
+        if (!regData)
+            break;
+
+        busyCounter--;
+        if (busyCounter == 0)
+            return RT_ERR_BUSYWAIT_TIMEOUT;
+    }
+
+    /*Read access status*/
+    retVal = rtl8367c_getAsicRegBit(RTL8367C_TABLE_ACCESS_STATUS_REG, RTL8367C_HIT_STATUS_OFFSET, &regData);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    pL2Table->lookup_hit = regData;
+    if (!pL2Table->lookup_hit)
+        return RT_ERR_FAILED;
+
+    retVal = rtl8367c_getAsicReg(RTL8367C_TABLE_ACCESS_STATUS_REG, &regData);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    pL2Table->address = (regData & 0x7ff) | ((regData & 0x4000) >> 3) | ((regData & 0x800) << 1);
+    pL2Table->lookup_busy = 0;
+
+    return RT_ERR_OK;
+}
+
+int32_t rtl8367::rtk_l2_addr_add(rtk_mac_t *pMac, rtk_l2_ucastAddr_t *pL2_data)
+{
+    int32_t retVal;
+    uint32_t method;
+    rtl8367c_luttb l2Table;
+
+    /* must be unicast address */
+    if ((pMac == NULL) || (pMac->octet[0] & 0x1))
+        return RT_ERR_MAC;
+
+    if (pL2_data == NULL)
+        return RT_ERR_MAC;
+
+    RTK_CHK_PORT_VALID(pL2_data->port);
+
+    if (pL2_data->ivl >= RTK_ENABLE_END)
+        return RT_ERR_INPUT;
+
+    if (pL2_data->cvid > RTL8367C_VIDMAX)
+        return RT_ERR_L2_VID;
+
+    if (pL2_data->fid > RTL8367C_FIDMAX)
+        return RT_ERR_L2_FID;
+
+    if (pL2_data->is_static >= RTK_ENABLE_END)
+        return RT_ERR_INPUT;
+
+    if (pL2_data->sa_block >= RTK_ENABLE_END)
+        return RT_ERR_INPUT;
+
+    if (pL2_data->da_block >= RTK_ENABLE_END)
+        return RT_ERR_INPUT;
+
+    if (pL2_data->auth >= RTK_ENABLE_END)
+        return RT_ERR_INPUT;
+
+    if (pL2_data->efid > RTL8367C_EFIDMAX)
+        return RT_ERR_INPUT;
+
+    if (pL2_data->priority > RTL8367C_PRIMAX)
+        return RT_ERR_INPUT;
+
+    if (pL2_data->sa_pri_en >= RTK_ENABLE_END)
+        return RT_ERR_INPUT;
+
+    if (pL2_data->fwd_pri_en >= RTK_ENABLE_END)
+        return RT_ERR_INPUT;
+
+    memset(&l2Table, 0, sizeof(rtl8367c_luttb));
+
+    /* fill key (MAC,FID) to get L2 entry */
+    memcpy(l2Table.mac.octet, pMac->octet, ETHER_ADDR_LEN);
+    l2Table.ivl_svl = pL2_data->ivl;
+    l2Table.fid = pL2_data->fid;
+    l2Table.cvid_fid = pL2_data->cvid;
+    l2Table.efid = pL2_data->efid;
+    method = LUTREADMETHOD_MAC;
+    retVal = rtl8367c_getAsicL2LookupTb(method, &l2Table);
+    if (RT_ERR_OK == retVal)
+    {
+        memcpy(l2Table.mac.octet, pMac->octet, ETHER_ADDR_LEN);
+        l2Table.ivl_svl = pL2_data->ivl;
+        l2Table.cvid_fid = pL2_data->cvid;
+        l2Table.fid = pL2_data->fid;
+        l2Table.efid = pL2_data->efid;
+        l2Table.spa = rtk_switch_port_L2P_get(pL2_data->port);
+        l2Table.nosalearn = pL2_data->is_static;
+        l2Table.sa_block = pL2_data->sa_block;
+        l2Table.da_block = pL2_data->da_block;
+        l2Table.l3lookup = 0;
+        l2Table.auth = pL2_data->auth;
+        l2Table.age = 6;
+        l2Table.lut_pri = pL2_data->priority;
+        l2Table.sa_en = pL2_data->sa_pri_en;
+        l2Table.fwd_en = pL2_data->fwd_pri_en;
+        if ((retVal = rtl8367c_setAsicL2LookupTb(&l2Table)) != RT_ERR_OK)
+            return retVal;
+
+        pL2_data->address = l2Table.address;
+        return RT_ERR_OK;
+    }
+    else if (RT_ERR_L2_ENTRY_NOTFOUND == retVal)
+    {
+        memset(&l2Table, 0, sizeof(rtl8367c_luttb));
+        memcpy(l2Table.mac.octet, pMac->octet, ETHER_ADDR_LEN);
+        l2Table.ivl_svl = pL2_data->ivl;
+        l2Table.cvid_fid = pL2_data->cvid;
+        l2Table.fid = pL2_data->fid;
+        l2Table.efid = pL2_data->efid;
+        l2Table.spa = rtk_switch_port_L2P_get(pL2_data->port);
+        l2Table.nosalearn = pL2_data->is_static;
+        l2Table.sa_block = pL2_data->sa_block;
+        l2Table.da_block = pL2_data->da_block;
+        l2Table.l3lookup = 0;
+        l2Table.auth = pL2_data->auth;
+        l2Table.age = 6;
+        l2Table.lut_pri = pL2_data->priority;
+        l2Table.sa_en = pL2_data->sa_pri_en;
+        l2Table.fwd_en = pL2_data->fwd_pri_en;
+
+        if ((retVal = rtl8367c_setAsicL2LookupTb(&l2Table)) != RT_ERR_OK)
+            return retVal;
+
+        pL2_data->address = l2Table.address;
+
+        method = LUTREADMETHOD_MAC;
+        retVal = rtl8367c_getAsicL2LookupTb(method, &l2Table);
+        if (RT_ERR_L2_ENTRY_NOTFOUND == retVal)
+            return RT_ERR_L2_INDEXTBL_FULL;
+        else
+            return retVal;
+    }
+    else
+        return retVal;
+}
+
+int32_t rtl8367::rtk_l2_addr_del(rtk_mac_t *pMac, rtk_l2_ucastAddr_t *pL2_data)
+{
+    int32_t retVal;
+    uint32_t method;
+    rtl8367c_luttb l2Table;
+
+    /* must be unicast address */
+    if ((pMac == NULL) || (pMac->octet[0] & 0x1))
+        return RT_ERR_MAC;
+
+    if (pL2_data->fid > RTL8367C_FIDMAX || pL2_data->efid > RTL8367C_EFIDMAX)
+        return RT_ERR_L2_FID;
+
+    memset(&l2Table, 0, sizeof(rtl8367c_luttb));
+
+    /* fill key (MAC,FID) to get L2 entry */
+    memcpy(l2Table.mac.octet, pMac->octet, ETHER_ADDR_LEN);
+    l2Table.ivl_svl = pL2_data->ivl;
+    l2Table.cvid_fid = pL2_data->cvid;
+    l2Table.fid = pL2_data->fid;
+    l2Table.efid = pL2_data->efid;
+    method = LUTREADMETHOD_MAC;
+    retVal = rtl8367c_getAsicL2LookupTb(method, &l2Table);
+    if (RT_ERR_OK == retVal)
+    {
+        memcpy(l2Table.mac.octet, pMac->octet, ETHER_ADDR_LEN);
+        l2Table.ivl_svl = pL2_data->ivl;
+        l2Table.cvid_fid = pL2_data->cvid;
+        l2Table.fid = pL2_data->fid;
+        l2Table.efid = pL2_data->efid;
+        l2Table.spa = 0;
+        l2Table.nosalearn = 0;
+        l2Table.sa_block = 0;
+        l2Table.da_block = 0;
+        l2Table.auth = 0;
+        l2Table.age = 0;
+        l2Table.lut_pri = 0;
+        l2Table.sa_en = 0;
+        l2Table.fwd_en = 0;
+        if ((retVal = rtl8367c_setAsicL2LookupTb(&l2Table)) != RT_ERR_OK)
+            return retVal;
+
+        pL2_data->address = l2Table.address;
+        return RT_ERR_OK;
+    }
+    else
+        return retVal;
+}
+
+int32_t rtl8367::rtk_l2_addr_get(rtk_mac_t *pMac, rtk_l2_ucastAddr_t *pL2_data)
+{
+    int32_t retVal;
+    uint32_t method;
+    rtl8367c_luttb l2Table;
+
+    /* must be unicast address */
+    if ((pMac == NULL) || (pMac->octet[0] & 0x1))
+        return RT_ERR_MAC;
+
+    if (pL2_data->fid > RTL8367C_FIDMAX || pL2_data->efid > RTL8367C_EFIDMAX)
+        return RT_ERR_L2_FID;
+
+    memset(&l2Table, 0, sizeof(rtl8367c_luttb));
+
+    memcpy(l2Table.mac.octet, pMac->octet, ETHER_ADDR_LEN);
+    l2Table.ivl_svl = pL2_data->ivl;
+    l2Table.cvid_fid = pL2_data->cvid;
+    l2Table.fid = pL2_data->fid;
+    l2Table.efid = pL2_data->efid;
+    method = LUTREADMETHOD_MAC;
+
+    if ((retVal = rtl8367c_getAsicL2LookupTb(method, &l2Table)) != RT_ERR_OK)
+        return retVal;
+
+    memcpy(pL2_data->mac.octet, pMac->octet, ETHER_ADDR_LEN);
+    pL2_data->port = rtk_switch_port_P2L_get(l2Table.spa);
+    pL2_data->fid = l2Table.fid;
+    pL2_data->efid = l2Table.efid;
+    pL2_data->ivl = l2Table.ivl_svl;
+    pL2_data->cvid = l2Table.cvid_fid;
+    pL2_data->is_static = l2Table.nosalearn;
+    pL2_data->auth = l2Table.auth;
+    pL2_data->sa_block = l2Table.sa_block;
+    pL2_data->da_block = l2Table.da_block;
+    pL2_data->priority = l2Table.lut_pri;
+    pL2_data->sa_pri_en = l2Table.sa_en;
+    pL2_data->fwd_pri_en = l2Table.fwd_en;
+    pL2_data->address = l2Table.address;
+
+    return RT_ERR_OK;
+}
+
+int32_t rtl8367::rtk_l2_addr_next_get(rtk_l2_read_method_t read_method, rtk_port_t port, uint32_t *pAddress, rtk_l2_ucastAddr_t *pL2_data)
+{
+    int32_t retVal;
+    uint32_t method;
+    rtl8367c_luttb l2Table;
+
+    /* Error Checking */
+    if ((pL2_data == NULL) || (pAddress == NULL))
+        return RT_ERR_MAC;
+
+    if (read_method == READMETHOD_NEXT_L2UC)
+        method = LUTREADMETHOD_NEXT_L2UC;
+    else if (read_method == READMETHOD_NEXT_L2UCSPA)
+        method = LUTREADMETHOD_NEXT_L2UCSPA;
+    else
+        return RT_ERR_INPUT;
+
+    /* Check Port Valid */
+    RTK_CHK_PORT_VALID(port);
+
+    if (*pAddress > RTK_MAX_LUT_ADDR_ID)
+        return RT_ERR_L2_L2UNI_PARAM;
+
+    memset(&l2Table, 0, sizeof(rtl8367c_luttb));
+    l2Table.address = *pAddress;
+
+    if (read_method == READMETHOD_NEXT_L2UCSPA)
+        l2Table.spa = rtk_switch_port_L2P_get(port);
+
+    if ((retVal = rtl8367c_getAsicL2LookupTb(method, &l2Table)) != RT_ERR_OK)
+        return retVal;
+
+    if (l2Table.address < *pAddress)
+        return RT_ERR_L2_ENTRY_NOTFOUND;
+
+    memcpy(pL2_data->mac.octet, l2Table.mac.octet, ETHER_ADDR_LEN);
+    pL2_data->port = rtk_switch_port_P2L_get(l2Table.spa);
+    pL2_data->fid = l2Table.fid;
+    pL2_data->efid = l2Table.efid;
+    pL2_data->ivl = l2Table.ivl_svl;
+    pL2_data->cvid = l2Table.cvid_fid;
+    pL2_data->is_static = l2Table.nosalearn;
+    pL2_data->auth = l2Table.auth;
+    pL2_data->sa_block = l2Table.sa_block;
+    pL2_data->da_block = l2Table.da_block;
+    pL2_data->priority = l2Table.lut_pri;
+    pL2_data->sa_pri_en = l2Table.sa_en;
+    pL2_data->fwd_pri_en = l2Table.fwd_en;
+    pL2_data->address = l2Table.address;
+
+    *pAddress = l2Table.address;
+
+    return RT_ERR_OK;
+}
+
+int32_t rtl8367::rtk_l2_mcastAddr_add(rtk_l2_mcastAddr_t *pMcastAddr)
+{
+    int32_t retVal;
+    uint32_t method;
+    rtl8367c_luttb l2Table;
+    uint32_t pmask;
+
+    if (NULL == pMcastAddr)
+        return RT_ERR_NULL_POINTER;
+
+    /* must be L2 multicast address */
+    if ((pMcastAddr->mac.octet[0] & 0x01) != 0x01)
+        return RT_ERR_MAC;
+
+    RTK_CHK_PORTMASK_VALID(&pMcastAddr->portmask);
+
+    if (pMcastAddr->ivl == 1)
+    {
+        if (pMcastAddr->vid > RTL8367C_VIDMAX)
+            return RT_ERR_L2_VID;
+    }
+    else if (pMcastAddr->ivl == 0)
+    {
+        if (pMcastAddr->fid > RTL8367C_FIDMAX)
+            return RT_ERR_L2_FID;
+    }
+    else
+        return RT_ERR_INPUT;
+
+    if (pMcastAddr->fwd_pri_en >= RTK_ENABLE_END)
+        return RT_ERR_INPUT;
+
+    if (pMcastAddr->priority > RTL8367C_PRIMAX)
+        return RT_ERR_INPUT;
+
+    /* Get physical port mask */
+    if ((retVal = rtk_switch_portmask_L2P_get(&pMcastAddr->portmask, &pmask)) != RT_ERR_OK)
+        return retVal;
+
+    memset(&l2Table, 0, sizeof(rtl8367c_luttb));
+
+    /* fill key (MAC,FID) to get L2 entry */
+    memcpy(l2Table.mac.octet, pMcastAddr->mac.octet, ETHER_ADDR_LEN);
+    l2Table.ivl_svl = pMcastAddr->ivl;
+
+    if (pMcastAddr->ivl)
+        l2Table.cvid_fid = pMcastAddr->vid;
+    else
+        l2Table.cvid_fid = pMcastAddr->fid;
+
+    method = LUTREADMETHOD_MAC;
+    retVal = rtl8367c_getAsicL2LookupTb(method, &l2Table);
+    if (RT_ERR_OK == retVal)
+    {
+        memcpy(l2Table.mac.octet, pMcastAddr->mac.octet, ETHER_ADDR_LEN);
+        l2Table.ivl_svl = pMcastAddr->ivl;
+
+        if (pMcastAddr->ivl)
+            l2Table.cvid_fid = pMcastAddr->vid;
+        else
+            l2Table.cvid_fid = pMcastAddr->fid;
+
+        l2Table.mbr = pmask;
+        l2Table.nosalearn = 1;
+        l2Table.l3lookup = 0;
+        l2Table.lut_pri = pMcastAddr->priority;
+        l2Table.fwd_en = pMcastAddr->fwd_pri_en;
+        if ((retVal = rtl8367c_setAsicL2LookupTb(&l2Table)) != RT_ERR_OK)
+            return retVal;
+
+        pMcastAddr->address = l2Table.address;
+        return RT_ERR_OK;
+    }
+    else if (RT_ERR_L2_ENTRY_NOTFOUND == retVal)
+    {
+        memset(&l2Table, 0, sizeof(rtl8367c_luttb));
+        memcpy(l2Table.mac.octet, pMcastAddr->mac.octet, ETHER_ADDR_LEN);
+        l2Table.ivl_svl = pMcastAddr->ivl;
+        if (pMcastAddr->ivl)
+            l2Table.cvid_fid = pMcastAddr->vid;
+        else
+            l2Table.cvid_fid = pMcastAddr->fid;
+
+        l2Table.mbr = pmask;
+        l2Table.nosalearn = 1;
+        l2Table.l3lookup = 0;
+        l2Table.lut_pri = pMcastAddr->priority;
+        l2Table.fwd_en = pMcastAddr->fwd_pri_en;
+        if ((retVal = rtl8367c_setAsicL2LookupTb(&l2Table)) != RT_ERR_OK)
+            return retVal;
+
+        pMcastAddr->address = l2Table.address;
+
+        method = LUTREADMETHOD_MAC;
+        retVal = rtl8367c_getAsicL2LookupTb(method, &l2Table);
+        if (RT_ERR_L2_ENTRY_NOTFOUND == retVal)
+            return RT_ERR_L2_INDEXTBL_FULL;
+        else
+            return retVal;
+    }
+    else
+        return retVal;
+}
+
+int32_t rtl8367::rtk_l2_mcastAddr_del(rtk_l2_mcastAddr_t *pMcastAddr)
+{
+    int32_t retVal;
+    uint32_t method;
+    rtl8367c_luttb l2Table;
+
+    if (NULL == pMcastAddr)
+        return RT_ERR_NULL_POINTER;
+
+    /* must be L2 multicast address */
+    if ((pMcastAddr->mac.octet[0] & 0x01) != 0x01)
+        return RT_ERR_MAC;
+
+    if (pMcastAddr->ivl == 1)
+    {
+        if (pMcastAddr->vid > RTL8367C_VIDMAX)
+            return RT_ERR_L2_VID;
+    }
+    else if (pMcastAddr->ivl == 0)
+    {
+        if (pMcastAddr->fid > RTL8367C_FIDMAX)
+            return RT_ERR_L2_FID;
+    }
+    else
+        return RT_ERR_INPUT;
+
+    memset(&l2Table, 0, sizeof(rtl8367c_luttb));
+
+    /* fill key (MAC,FID) to get L2 entry */
+    memcpy(l2Table.mac.octet, pMcastAddr->mac.octet, ETHER_ADDR_LEN);
+    l2Table.ivl_svl = pMcastAddr->ivl;
+
+    if (pMcastAddr->ivl)
+        l2Table.cvid_fid = pMcastAddr->vid;
+    else
+        l2Table.cvid_fid = pMcastAddr->fid;
+
+    method = LUTREADMETHOD_MAC;
+    retVal = rtl8367c_getAsicL2LookupTb(method, &l2Table);
+    if (RT_ERR_OK == retVal)
+    {
+        memcpy(l2Table.mac.octet, pMcastAddr->mac.octet, ETHER_ADDR_LEN);
+        l2Table.ivl_svl = pMcastAddr->ivl;
+
+        if (pMcastAddr->ivl)
+            l2Table.cvid_fid = pMcastAddr->vid;
+        else
+            l2Table.cvid_fid = pMcastAddr->fid;
+
+        l2Table.mbr = 0;
+        l2Table.nosalearn = 0;
+        l2Table.sa_block = 0;
+        l2Table.l3lookup = 0;
+        l2Table.lut_pri = 0;
+        l2Table.fwd_en = 0;
+        if ((retVal = rtl8367c_setAsicL2LookupTb(&l2Table)) != RT_ERR_OK)
+            return retVal;
+
+        pMcastAddr->address = l2Table.address;
+        return RT_ERR_OK;
+    }
+    else
+        return retVal;
+}
+
+int32_t rtl8367::rtk_l2_mcastAddr_get(rtk_l2_mcastAddr_t *pMcastAddr)
+{
+    int32_t retVal;
+    uint32_t method;
+    rtl8367c_luttb l2Table;
+
+    if (NULL == pMcastAddr)
+        return RT_ERR_NULL_POINTER;
+
+    /* must be L2 multicast address */
+    if ((pMcastAddr->mac.octet[0] & 0x01) != 0x01)
+        return RT_ERR_MAC;
+
+    if (pMcastAddr->ivl == 1)
+    {
+        if (pMcastAddr->vid > RTL8367C_VIDMAX)
+            return RT_ERR_L2_VID;
+    }
+    else if (pMcastAddr->ivl == 0)
+    {
+        if (pMcastAddr->fid > RTL8367C_FIDMAX)
+            return RT_ERR_L2_FID;
+    }
+    else
+        return RT_ERR_INPUT;
+
+    memset(&l2Table, 0, sizeof(rtl8367c_luttb));
+    memcpy(l2Table.mac.octet, pMcastAddr->mac.octet, ETHER_ADDR_LEN);
+    l2Table.ivl_svl = pMcastAddr->ivl;
+
+    if (pMcastAddr->ivl)
+        l2Table.cvid_fid = pMcastAddr->vid;
+    else
+        l2Table.cvid_fid = pMcastAddr->fid;
+
+    method = LUTREADMETHOD_MAC;
+
+    if ((retVal = rtl8367c_getAsicL2LookupTb(method, &l2Table)) != RT_ERR_OK)
+        return retVal;
+
+    pMcastAddr->priority = l2Table.lut_pri;
+    pMcastAddr->fwd_pri_en = l2Table.fwd_en;
+    pMcastAddr->igmp_asic = l2Table.igmp_asic;
+    pMcastAddr->igmp_index = l2Table.igmpidx;
+    pMcastAddr->address = l2Table.address;
+
+    /* Get Logical port mask */
+    if ((retVal = rtk_switch_portmask_P2L_get(l2Table.mbr, &pMcastAddr->portmask)) != RT_ERR_OK)
+        return retVal;
+
+    return RT_ERR_OK;
+}
+
+int32_t rtl8367::rtk_l2_mcastAddr_next_get(uint32_t *pAddress, rtk_l2_mcastAddr_t *pMcastAddr)
+{
+    int32_t retVal;
+    rtl8367c_luttb l2Table;
+
+    /* Error Checking */
+    if ((pAddress == NULL) || (pMcastAddr == NULL))
+        return RT_ERR_INPUT;
+
+    if (*pAddress > RTK_MAX_LUT_ADDR_ID)
+        return RT_ERR_L2_L2UNI_PARAM;
+
+    memset(&l2Table, 0, sizeof(rtl8367c_luttb));
+    l2Table.address = *pAddress;
+
+    if ((retVal = rtl8367c_getAsicL2LookupTb(LUTREADMETHOD_NEXT_L2MC, &l2Table)) != RT_ERR_OK)
+        return retVal;
+
+    if (l2Table.address < *pAddress)
+        return RT_ERR_L2_ENTRY_NOTFOUND;
+
+    memcpy(pMcastAddr->mac.octet, l2Table.mac.octet, ETHER_ADDR_LEN);
+    pMcastAddr->ivl = l2Table.ivl_svl;
+
+    if (pMcastAddr->ivl)
+        pMcastAddr->vid = l2Table.cvid_fid;
+    else
+        pMcastAddr->fid = l2Table.cvid_fid;
+
+    pMcastAddr->priority = l2Table.lut_pri;
+    pMcastAddr->fwd_pri_en = l2Table.fwd_en;
+    pMcastAddr->igmp_asic = l2Table.igmp_asic;
+    pMcastAddr->igmp_index = l2Table.igmpidx;
+    pMcastAddr->address = l2Table.address;
+
+    /* Get Logical port mask */
+    if ((retVal = rtk_switch_portmask_P2L_get(l2Table.mbr, &pMcastAddr->portmask)) != RT_ERR_OK)
+        return retVal;
+
+    *pAddress = l2Table.address;
+
+    return RT_ERR_OK;
+}
+
+int32_t rtl8367::rtk_l2_ipMcastAddr_add(rtk_l2_ipMcastAddr_t *pIpMcastAddr)
+{
+    int32_t retVal;
+    uint32_t method;
+    rtl8367c_luttb l2Table;
+    uint32_t pmask;
+
+    if (NULL == pIpMcastAddr)
+        return RT_ERR_NULL_POINTER;
+
+    /* check port mask */
+    RTK_CHK_PORTMASK_VALID(&pIpMcastAddr->portmask);
+
+    if ((pIpMcastAddr->dip & 0xF0000000) != 0xE0000000)
+        return RT_ERR_INPUT;
+
+    if (pIpMcastAddr->fwd_pri_en >= RTK_ENABLE_END)
+        return RT_ERR_ENABLE;
+
+    if (pIpMcastAddr->priority > RTL8367C_PRIMAX)
+        return RT_ERR_INPUT;
+
+    /* Get Physical port mask */
+    if ((retVal = rtk_switch_portmask_L2P_get(&pIpMcastAddr->portmask, &pmask)) != RT_ERR_OK)
+        return retVal;
+
+    memset(&l2Table, 0x00, sizeof(rtl8367c_luttb));
+    l2Table.sip = pIpMcastAddr->sip;
+    l2Table.dip = pIpMcastAddr->dip;
+    l2Table.l3lookup = 1;
+    l2Table.l3vidlookup = 0;
+    method = LUTREADMETHOD_MAC;
+    retVal = rtl8367c_getAsicL2LookupTb(method, &l2Table);
+    if (RT_ERR_OK == retVal)
+    {
+        l2Table.sip = pIpMcastAddr->sip;
+        l2Table.dip = pIpMcastAddr->dip;
+        l2Table.mbr = pmask;
+        l2Table.nosalearn = 1;
+        l2Table.l3lookup = 1;
+        l2Table.l3vidlookup = 0;
+        l2Table.lut_pri = pIpMcastAddr->priority;
+        l2Table.fwd_en = pIpMcastAddr->fwd_pri_en;
+        if ((retVal = rtl8367c_setAsicL2LookupTb(&l2Table)) != RT_ERR_OK)
+            return retVal;
+
+        pIpMcastAddr->address = l2Table.address;
+        return RT_ERR_OK;
+    }
+    else if (RT_ERR_L2_ENTRY_NOTFOUND == retVal)
+    {
+        memset(&l2Table, 0, sizeof(rtl8367c_luttb));
+        l2Table.sip = pIpMcastAddr->sip;
+        l2Table.dip = pIpMcastAddr->dip;
+        l2Table.mbr = pmask;
+        l2Table.nosalearn = 1;
+        l2Table.l3lookup = 1;
+        l2Table.l3vidlookup = 0;
+        l2Table.lut_pri = pIpMcastAddr->priority;
+        l2Table.fwd_en = pIpMcastAddr->fwd_pri_en;
+        if ((retVal = rtl8367c_setAsicL2LookupTb(&l2Table)) != RT_ERR_OK)
+            return retVal;
+
+        pIpMcastAddr->address = l2Table.address;
+
+        method = LUTREADMETHOD_MAC;
+        retVal = rtl8367c_getAsicL2LookupTb(method, &l2Table);
+        if (RT_ERR_L2_ENTRY_NOTFOUND == retVal)
+            return RT_ERR_L2_INDEXTBL_FULL;
+        else
+            return retVal;
+    }
+    else
+        return retVal;
+}
+
+int32_t rtl8367::rtk_l2_ipMcastAddr_del(rtk_l2_ipMcastAddr_t *pIpMcastAddr)
+{
+    int32_t retVal;
+    uint32_t method;
+    rtl8367c_luttb l2Table;
+
+    /* Error Checking */
+    if (pIpMcastAddr == NULL)
+        return RT_ERR_INPUT;
+
+    if ((pIpMcastAddr->dip & 0xF0000000) != 0xE0000000)
+        return RT_ERR_INPUT;
+
+    memset(&l2Table, 0x00, sizeof(rtl8367c_luttb));
+    l2Table.sip = pIpMcastAddr->sip;
+    l2Table.dip = pIpMcastAddr->dip;
+    l2Table.l3lookup = 1;
+    l2Table.l3vidlookup = 0;
+    method = LUTREADMETHOD_MAC;
+    retVal = rtl8367c_getAsicL2LookupTb(method, &l2Table);
+    if (RT_ERR_OK == retVal)
+    {
+        l2Table.sip = pIpMcastAddr->sip;
+        l2Table.dip = pIpMcastAddr->dip;
+        l2Table.mbr = 0;
+        l2Table.nosalearn = 0;
+        l2Table.l3lookup = 1;
+        l2Table.l3vidlookup = 0;
+        l2Table.lut_pri = 0;
+        l2Table.fwd_en = 0;
+        if ((retVal = rtl8367c_setAsicL2LookupTb(&l2Table)) != RT_ERR_OK)
+            return retVal;
+
+        pIpMcastAddr->address = l2Table.address;
+        return RT_ERR_OK;
+    }
+    else
+        return retVal;
+}
+
+int32_t rtl8367::rtk_l2_ipMcastAddr_get(rtk_l2_ipMcastAddr_t *pIpMcastAddr)
+{
+    int32_t retVal;
+    uint32_t method;
+    rtl8367c_luttb l2Table;
+
+    if (NULL == pIpMcastAddr)
+        return RT_ERR_NULL_POINTER;
+
+    if ((pIpMcastAddr->dip & 0xF0000000) != 0xE0000000)
+        return RT_ERR_INPUT;
+
+    memset(&l2Table, 0x00, sizeof(rtl8367c_luttb));
+    l2Table.sip = pIpMcastAddr->sip;
+    l2Table.dip = pIpMcastAddr->dip;
+    l2Table.l3lookup = 1;
+    l2Table.l3vidlookup = 0;
+    method = LUTREADMETHOD_MAC;
+    if ((retVal = rtl8367c_getAsicL2LookupTb(method, &l2Table)) != RT_ERR_OK)
+        return retVal;
+
+    /* Get Logical port mask */
+    if ((retVal = rtk_switch_portmask_P2L_get(l2Table.mbr, &pIpMcastAddr->portmask)) != RT_ERR_OK)
+        return retVal;
+
+    pIpMcastAddr->priority = l2Table.lut_pri;
+    pIpMcastAddr->fwd_pri_en = l2Table.fwd_en;
+    pIpMcastAddr->igmp_asic = l2Table.igmp_asic;
+    pIpMcastAddr->igmp_index = l2Table.igmpidx;
+    pIpMcastAddr->address = l2Table.address;
+
+    return RT_ERR_OK;
+}
+
+int32_t rtl8367::rtk_l2_ipMcastAddr_next_get(uint32_t *pAddress, rtk_l2_ipMcastAddr_t *pIpMcastAddr)
+{
+    int32_t retVal;
+    rtl8367c_luttb l2Table;
+
+    /* Error Checking */
+    if ((pAddress == NULL) || (pIpMcastAddr == NULL))
+        return RT_ERR_INPUT;
+
+    if (*pAddress > RTK_MAX_LUT_ADDR_ID)
+        return RT_ERR_L2_L2UNI_PARAM;
+
+    memset(&l2Table, 0, sizeof(rtl8367c_luttb));
+    l2Table.address = *pAddress;
+
+    do
+    {
+        if ((retVal = rtl8367c_getAsicL2LookupTb(LUTREADMETHOD_NEXT_L3MC, &l2Table)) != RT_ERR_OK)
+            return retVal;
+
+        if (l2Table.address < *pAddress)
+            return RT_ERR_L2_ENTRY_NOTFOUND;
+
+    } while (l2Table.l3vidlookup == 1);
+
+    pIpMcastAddr->sip = l2Table.sip;
+    pIpMcastAddr->dip = l2Table.dip;
+
+    /* Get Logical port mask */
+    if ((retVal = rtk_switch_portmask_P2L_get(l2Table.mbr, &pIpMcastAddr->portmask)) != RT_ERR_OK)
+        return retVal;
+
+    pIpMcastAddr->priority = l2Table.lut_pri;
+    pIpMcastAddr->fwd_pri_en = l2Table.fwd_en;
+    pIpMcastAddr->igmp_asic = l2Table.igmp_asic;
+    pIpMcastAddr->igmp_index = l2Table.igmpidx;
+    pIpMcastAddr->address = l2Table.address;
+    *pAddress = l2Table.address;
+
+    return RT_ERR_OK;
+}
+
+int32_t rtl8367::rtk_l2_ipVidMcastAddr_add(rtk_l2_ipVidMcastAddr_t *pIpVidMcastAddr)
+{
+    int32_t retVal;
+    uint32_t method;
+    rtl8367c_luttb l2Table;
+    uint32_t pmask;
+
+    if (NULL == pIpVidMcastAddr)
+        return RT_ERR_NULL_POINTER;
+
+    /* check port mask */
+    RTK_CHK_PORTMASK_VALID(&pIpVidMcastAddr->portmask);
+
+    if (pIpVidMcastAddr->vid > RTL8367C_VIDMAX)
+        return RT_ERR_L2_VID;
+
+    if ((pIpVidMcastAddr->dip & 0xF0000000) != 0xE0000000)
+        return RT_ERR_INPUT;
+
+    /* Get Physical port mask */
+    if ((retVal = rtk_switch_portmask_L2P_get(&pIpVidMcastAddr->portmask, &pmask)) != RT_ERR_OK)
+        return retVal;
+
+    memset(&l2Table, 0x00, sizeof(rtl8367c_luttb));
+    l2Table.sip = pIpVidMcastAddr->sip;
+    l2Table.dip = pIpVidMcastAddr->dip;
+    l2Table.l3lookup = 1;
+    l2Table.l3vidlookup = 1;
+    l2Table.l3_vid = pIpVidMcastAddr->vid;
+    method = LUTREADMETHOD_MAC;
+    retVal = rtl8367c_getAsicL2LookupTb(method, &l2Table);
+    if (RT_ERR_OK == retVal)
+    {
+        l2Table.sip = pIpVidMcastAddr->sip;
+        l2Table.dip = pIpVidMcastAddr->dip;
+        l2Table.mbr = pmask;
+        l2Table.nosalearn = 1;
+        l2Table.l3lookup = 1;
+        l2Table.l3vidlookup = 1;
+        l2Table.l3_vid = pIpVidMcastAddr->vid;
+        if ((retVal = rtl8367c_setAsicL2LookupTb(&l2Table)) != RT_ERR_OK)
+            return retVal;
+
+        pIpVidMcastAddr->address = l2Table.address;
+        return RT_ERR_OK;
+    }
+    else if (RT_ERR_L2_ENTRY_NOTFOUND == retVal)
+    {
+        memset(&l2Table, 0, sizeof(rtl8367c_luttb));
+        l2Table.sip = pIpVidMcastAddr->sip;
+        l2Table.dip = pIpVidMcastAddr->dip;
+        l2Table.mbr = pmask;
+        l2Table.nosalearn = 1;
+        l2Table.l3lookup = 1;
+        l2Table.l3vidlookup = 1;
+        l2Table.l3_vid = pIpVidMcastAddr->vid;
+        if ((retVal = rtl8367c_setAsicL2LookupTb(&l2Table)) != RT_ERR_OK)
+            return retVal;
+
+        pIpVidMcastAddr->address = l2Table.address;
+
+        method = LUTREADMETHOD_MAC;
+        retVal = rtl8367c_getAsicL2LookupTb(method, &l2Table);
+        if (RT_ERR_L2_ENTRY_NOTFOUND == retVal)
+            return RT_ERR_L2_INDEXTBL_FULL;
+        else
+            return retVal;
+    }
+    else
+        return retVal;
+}
+
+int32_t rtl8367::rtk_l2_ipVidMcastAddr_del(rtk_l2_ipVidMcastAddr_t *pIpVidMcastAddr)
+{
+    int32_t retVal;
+    uint32_t method;
+    rtl8367c_luttb l2Table;
+
+    if (NULL == pIpVidMcastAddr)
+        return RT_ERR_NULL_POINTER;
+
+    if (pIpVidMcastAddr->vid > RTL8367C_VIDMAX)
+        return RT_ERR_L2_VID;
+
+    if ((pIpVidMcastAddr->dip & 0xF0000000) != 0xE0000000)
+        return RT_ERR_INPUT;
+
+    memset(&l2Table, 0x00, sizeof(rtl8367c_luttb));
+    l2Table.sip = pIpVidMcastAddr->sip;
+    l2Table.dip = pIpVidMcastAddr->dip;
+    l2Table.l3lookup = 1;
+    l2Table.l3vidlookup = 1;
+    l2Table.l3_vid = pIpVidMcastAddr->vid;
+    method = LUTREADMETHOD_MAC;
+    retVal = rtl8367c_getAsicL2LookupTb(method, &l2Table);
+    if (RT_ERR_OK == retVal)
+    {
+        l2Table.sip = pIpVidMcastAddr->sip;
+        l2Table.dip = pIpVidMcastAddr->dip;
+        l2Table.mbr = 0;
+        l2Table.nosalearn = 0;
+        l2Table.l3lookup = 1;
+        l2Table.l3vidlookup = 1;
+        l2Table.l3_vid = pIpVidMcastAddr->vid;
+        if ((retVal = rtl8367c_setAsicL2LookupTb(&l2Table)) != RT_ERR_OK)
+            return retVal;
+
+        pIpVidMcastAddr->address = l2Table.address;
+        return RT_ERR_OK;
+    }
+    else
+        return retVal;
+}
+
+int32_t rtl8367::rtk_l2_ipVidMcastAddr_get(rtk_l2_ipVidMcastAddr_t *pIpVidMcastAddr)
+{
+    int32_t retVal;
+    uint32_t method;
+    rtl8367c_luttb l2Table;
+
+    if (NULL == pIpVidMcastAddr)
+        return RT_ERR_NULL_POINTER;
+
+    if (pIpVidMcastAddr->vid > RTL8367C_VIDMAX)
+        return RT_ERR_L2_VID;
+
+    if ((pIpVidMcastAddr->dip & 0xF0000000) != 0xE0000000)
+        return RT_ERR_INPUT;
+
+    memset(&l2Table, 0x00, sizeof(rtl8367c_luttb));
+    l2Table.sip = pIpVidMcastAddr->sip;
+    l2Table.dip = pIpVidMcastAddr->dip;
+    l2Table.l3lookup = 1;
+    l2Table.l3vidlookup = 1;
+    l2Table.l3_vid = pIpVidMcastAddr->vid;
+    method = LUTREADMETHOD_MAC;
+    if ((retVal = rtl8367c_getAsicL2LookupTb(method, &l2Table)) != RT_ERR_OK)
+        return retVal;
+
+    pIpVidMcastAddr->address = l2Table.address;
+
+    /* Get Logical port mask */
+    if ((retVal = rtk_switch_portmask_P2L_get(l2Table.mbr, &pIpVidMcastAddr->portmask)) != RT_ERR_OK)
+        return retVal;
+
+    return RT_ERR_OK;
+}
+
+int32_t rtl8367::rtk_l2_ipVidMcastAddr_next_get(uint32_t *pAddress, rtk_l2_ipVidMcastAddr_t *pIpVidMcastAddr)
+{
+    int32_t retVal;
+    rtl8367c_luttb l2Table;
+
+    /* Error Checking */
+    if ((pAddress == NULL) || (pIpVidMcastAddr == NULL))
+        return RT_ERR_INPUT;
+
+    if (*pAddress > RTK_MAX_LUT_ADDR_ID)
+        return RT_ERR_L2_L2UNI_PARAM;
+
+    memset(&l2Table, 0, sizeof(rtl8367c_luttb));
+    l2Table.address = *pAddress;
+
+    do
+    {
+        if ((retVal = rtl8367c_getAsicL2LookupTb(LUTREADMETHOD_NEXT_L3MC, &l2Table)) != RT_ERR_OK)
+            return retVal;
+
+        if (l2Table.address < *pAddress)
+            return RT_ERR_L2_ENTRY_NOTFOUND;
+
+    } while (l2Table.l3vidlookup == 0);
+
+    pIpVidMcastAddr->sip = l2Table.sip;
+    pIpVidMcastAddr->dip = l2Table.dip;
+    pIpVidMcastAddr->vid = l2Table.l3_vid;
+    pIpVidMcastAddr->address = l2Table.address;
+
+    /* Get Logical port mask */
+    if ((retVal = rtk_switch_portmask_P2L_get(l2Table.mbr, &pIpVidMcastAddr->portmask)) != RT_ERR_OK)
+        return retVal;
+
+    *pAddress = l2Table.address;
+
+    return RT_ERR_OK;
+}
+
+// ----------------------- QoS -----------------------
+
+/* Function Name:
+ *      rtl8367c_setAsicOutputQueueMappingIndex
+ * Description:
+ *      Set output queue number for each port
+ * Input:
+ *      port     - Physical port number (0~7)
+ *      index     - Mapping table index
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK             - Success
+ *      RT_ERR_SMI          - SMI access error
+ *      RT_ERR_PORT_ID      - Invalid port number
+ *      RT_ERR_QUEUE_NUM      - Invalid queue number
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsicOutputQueueMappingIndex(uint32_t port, uint32_t index)
+{
+    if (port > RTL8367C_PORTIDMAX)
+        return RT_ERR_PORT_ID;
+
+    if (index >= RTL8367C_QUEUENO)
+        return RT_ERR_QUEUE_NUM;
+
+    return rtl8367c_setAsicRegBits(RTL8367C_QOS_PORT_QUEUE_NUMBER_REG(port), RTL8367C_QOS_PORT_QUEUE_NUMBER_MASK(port), index);
+}
+
+/* Function Name:
+ *      rtl8367c_setAsicPriorityToQIDMappingTable
+ * Description:
+ *      Set priority to QID mapping table parameters
+ * Input:
+ *      index         - Mapping table index
+ *      priority     - The priority value
+ *      qid         - Queue id
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK                 - Success
+ *      RT_ERR_SMI              - SMI access error
+ *      RT_ERR_QUEUE_ID          - Invalid queue id
+ *      RT_ERR_QUEUE_NUM          - Invalid queue number
+ *      RT_ERR_QOS_INT_PRIORITY - Invalid priority
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsicPriorityToQIDMappingTable(uint32_t index, uint32_t priority, uint32_t qid)
+{
+    if (index >= RTL8367C_QUEUENO)
+        return RT_ERR_QUEUE_NUM;
+
+    if (priority > RTL8367C_PRIMAX)
+        return RT_ERR_QOS_INT_PRIORITY;
+
+    if (qid > RTL8367C_QIDMAX)
+        return RT_ERR_QUEUE_ID;
+
+    return rtl8367c_setAsicRegBits(RTL8367C_QOS_1Q_PRIORITY_TO_QID_REG(index, priority), RTL8367C_QOS_1Q_PRIORITY_TO_QID_MASK(priority), qid);
+}
+
+/* Function Name:
+ *      rtl8367c_setAsicFlowControlSelect
+ * Description:
+ *      Set system flow control type
+ * Input:
+ *      select      - System flow control type 1: Ingress flow control 0:Egress flow control
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK   - Success
+ *      RT_ERR_SMI  - SMI access error
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsicFlowControlSelect(uint32_t select)
+{
+    return rtl8367c_setAsicRegBit(RTL8367C_REG_FLOWCTRL_CTRL0, RTL8367C_FLOWCTRL_TYPE_OFFSET, select);
+}
+
+/* Function Name:
+ *      rtl8367c_setAsicPriorityDecision
+ * Description:
+ *      Set priority decision table
+ * Input:
+ *      prisrc         - Priority decision source
+ *      decisionPri - Decision priority assignment
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK                     - Success
+ *      RT_ERR_SMI                  - SMI access error
+ *      RT_ERR_QOS_INT_PRIORITY        - Invalid priority
+ *      RT_ERR_QOS_SEL_PRI_SOURCE    - Invalid priority decision source parameter
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsicPriorityDecision(uint32_t index, uint32_t prisrc, uint32_t decisionPri)
+{
+    int32_t retVal;
+
+    if (index >= PRIDEC_IDX_END)
+        return RT_ERR_ENTRY_INDEX;
+
+    if (prisrc >= PRIDEC_END)
+        return RT_ERR_QOS_SEL_PRI_SOURCE;
+
+    if (decisionPri > RTL8367C_DECISIONPRIMAX)
+        return RT_ERR_QOS_INT_PRIORITY;
+
+    switch (index)
+    {
+    case PRIDEC_IDX0:
+        if ((retVal = rtl8367c_setAsicRegBits(RTL8367C_QOS_INTERNAL_PRIORITY_DECISION_REG(prisrc), RTL8367C_QOS_INTERNAL_PRIORITY_DECISION_MASK(prisrc), decisionPri)) != RT_ERR_OK)
+            return retVal;
+        break;
+    case PRIDEC_IDX1:
+        if ((retVal = rtl8367c_setAsicRegBits(RTL8367C_QOS_INTERNAL_PRIORITY_DECISION2_REG(prisrc), RTL8367C_QOS_INTERNAL_PRIORITY_DECISION2_MASK(prisrc), decisionPri)) != RT_ERR_OK)
+            return retVal;
+        break;
+    default:
+        break;
+    };
+
+    return RT_ERR_OK;
+}
+/* Function Name:
+ *      rtl8367c_setAsicRemarkingDot1pAbility
+ * Description:
+ *      Set 802.1p remarking ability
+ * Input:
+ *      port     - Physical port number (0~7)
+ *      enabled - 1: enabled, 0: disabled
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK             - Success
+ *      RT_ERR_SMI          - SMI access error
+ *      RT_ERR_PORT_ID      - Invalid port number
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsicRemarkingDot1pAbility(uint32_t port, uint32_t enabled)
+{
+    return rtl8367c_setAsicRegBit(RTL8367C_PORT_MISC_CFG_REG(port), RTL8367C_1QREMARK_ENABLE_OFFSET, enabled);
+}
+/* Function Name:
+ *      rtl8367c_setAsicRemarkingDscpAbility
+ * Description:
+ *      Set DSCP remarking ability
+ * Input:
+ *      enabled     - 1: enabled, 0: disabled
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK     - Success
+ *      RT_ERR_SMI  - SMI access error
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsicRemarkingDscpAbility(uint32_t enabled)
+{
+    return rtl8367c_setAsicRegBit(RTL8367C_REMARKING_CTRL_REG, RTL8367C_REMARKING_DSCP_ENABLE_OFFSET, enabled);
+}
+/* Function Name:
+ *      rtl8367c_setAsicPriorityDot1qRemapping
+ * Description:
+ *      Set 802.1Q absolutely priority
+ * Input:
+ *      srcpriority - Priority value
+ *      priority     - Absolute priority value
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK                 - Success
+ *      RT_ERR_SMI              - SMI access error
+ *      RT_ERR_QOS_INT_PRIORITY    - Invalid priority
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsicPriorityDot1qRemapping(uint32_t srcpriority, uint32_t priority)
+{
+    if ((srcpriority > RTL8367C_PRIMAX) || (priority > RTL8367C_PRIMAX))
+        return RT_ERR_QOS_INT_PRIORITY;
+
+    return rtl8367c_setAsicRegBits(RTL8367C_QOS_1Q_PRIORITY_REMAPPING_REG(srcpriority), RTL8367C_QOS_1Q_PRIORITY_REMAPPING_MASK(srcpriority), priority);
+}
+/* Function Name:
+ *      rtl8367c_setAsicRemarkingDot1pParameter
+ * Description:
+ *      Set 802.1p remarking parameter
+ * Input:
+ *      priority     - Priority value
+ *      newPriority - New priority value
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK                 - Success
+ *      RT_ERR_SMI              - SMI access error
+ *      RT_ERR_QOS_INT_PRIORITY - Invalid priority
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsicRemarkingDot1pParameter(uint32_t priority, uint32_t newPriority)
+{
+    if (priority > RTL8367C_PRIMAX || newPriority > RTL8367C_PRIMAX)
+        return RT_ERR_QOS_INT_PRIORITY;
+
+    return rtl8367c_setAsicRegBits(RTL8367C_QOS_1Q_REMARK_REG(priority), RTL8367C_QOS_1Q_REMARK_MASK(priority), newPriority);
+}
+/* Function Name:
+ *      rtl8367c_setAsicRemarkingDscpParameter
+ * Description:
+ *      Set DSCP remarking parameter
+ * Input:
+ *      priority     - Priority value
+ *      newDscp     - New DSCP value
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK                 - Success
+ *      RT_ERR_SMI              - SMI access error
+ *      RT_ERR_QOS_DSCP_VALUE    - Invalid DSCP value
+ *      RT_ERR_QOS_INT_PRIORITY    - Invalid priority
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsicRemarkingDscpParameter(uint32_t priority, uint32_t newDscp)
+{
+    if (priority > RTL8367C_PRIMAX)
+        return RT_ERR_QOS_INT_PRIORITY;
+
+    if (newDscp > RTL8367C_DSCPMAX)
+        return RT_ERR_QOS_DSCP_VALUE;
+
+    return rtl8367c_setAsicRegBits(RTL8367C_QOS_DSCP_REMARK_REG(priority), RTL8367C_QOS_DSCP_REMARK_MASK(priority), newDscp);
+}
+/* Function Name:
+ *      rtl8367c_setAsicPriorityDscpBased
+ * Description:
+ *      Set DSCP-based priority
+ * Input:
+ *      dscp         - DSCP value
+ *      priority     - Priority value
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK                 - Success
+ *      RT_ERR_SMI              - SMI access error
+ *      RT_ERR_QOS_DSCP_VALUE    - Invalid DSCP value
+ *      RT_ERR_QOS_INT_PRIORITY    - Invalid priority
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsicPriorityDscpBased(uint32_t dscp, uint32_t priority)
+{
+    if (priority > RTL8367C_PRIMAX)
+        return RT_ERR_QOS_INT_PRIORITY;
+
+    if (dscp > RTL8367C_DSCPMAX)
+        return RT_ERR_QOS_DSCP_VALUE;
+
+    return rtl8367c_setAsicRegBits(RTL8367C_QOS_DSCP_TO_PRIORITY_REG(dscp), RTL8367C_QOS_DSCP_TO_PRIORITY_MASK(dscp), priority);
+}
+int32_t rtl8367::rtk_qos_init(uint32_t queueNum)
+{
+    const uint16_t g_prioritytToQid[8][8] = {
+        {0, 0, 0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 7, 7, 7, 7},
+        {0, 0, 0, 0, 1, 1, 7, 7},
+        {0, 0, 1, 1, 2, 2, 7, 7},
+        {0, 0, 1, 1, 2, 3, 7, 7},
+        {0, 0, 1, 2, 3, 4, 7, 7},
+        {0, 0, 1, 2, 3, 4, 5, 7},
+        {0, 1, 2, 3, 4, 5, 6, 7}};
+
+    const uint32_t g_priorityDecision[8] = {0x01, 0x80, 0x04, 0x02, 0x20, 0x40, 0x10, 0x08};
+    const uint32_t g_prioritytRemap[8] = {0, 1, 2, 3, 4, 5, 6, 7};
+
+    int32_t retVal;
+    uint32_t qmapidx;
+    uint32_t priority;
+    uint32_t priDec;
+    uint32_t port;
+    uint32_t dscp;
+
+    if (queueNum <= 0 || queueNum > RTK_MAX_NUM_OF_QUEUE)
+        return RT_ERR_QUEUE_NUM;
+
+    /*Set Output Queue Number*/
+    if (RTK_MAX_NUM_OF_QUEUE == queueNum)
+        qmapidx = 0;
+    else
+        qmapidx = queueNum;
+
+    RTK_SCAN_ALL_PHY_PORTMASK(port)
+    {
+        if ((retVal = rtl8367c_setAsicOutputQueueMappingIndex(port, qmapidx)) != RT_ERR_OK)
+            return retVal;
+    }
+
+    /*Set Priority to Qid*/
+    for (priority = 0; priority <= RTK_PRIMAX; priority++)
+    {
+        if ((retVal = rtl8367c_setAsicPriorityToQIDMappingTable(queueNum - 1, priority, g_prioritytToQid[queueNum - 1][priority])) != RT_ERR_OK)
+            return retVal;
+    }
+
+    /*Set Flow Control Type to Ingress Flow Control*/
+    if ((retVal = rtl8367c_setAsicFlowControlSelect(FC_INGRESS)) != RT_ERR_OK)
+        return retVal;
+
+    /*Priority Decision Order*/
+    for (priDec = 0; priDec < PRIDEC_END; priDec++)
+    {
+        if ((retVal = rtl8367c_setAsicPriorityDecision(PRIDECTBL_IDX0, priDec, g_priorityDecision[priDec])) != RT_ERR_OK)
+            return retVal;
+        if ((retVal = rtl8367c_setAsicPriorityDecision(PRIDECTBL_IDX1, priDec, g_priorityDecision[priDec])) != RT_ERR_OK)
+            return retVal;
+    }
+
+    /*Set Port-based Priority to 0*/
+    RTK_SCAN_ALL_PHY_PORTMASK(port)
+    {
+        if ((retVal = rtl8367c_setAsicPriorityPortBased(port, 0)) != RT_ERR_OK)
+            return retVal;
+    }
+
+    /*Disable 1p Remarking*/
+    RTK_SCAN_ALL_PHY_PORTMASK(port)
+    {
+        if ((retVal = rtl8367c_setAsicRemarkingDot1pAbility(port, DISABLED)) != RT_ERR_OK)
+            return retVal;
+    }
+
+    /*Disable DSCP Remarking*/
+    if ((retVal = rtl8367c_setAsicRemarkingDscpAbility(DISABLED)) != RT_ERR_OK)
+        return retVal;
+
+    /*Set 1p & DSCP  Priority Remapping & Remarking*/
+    for (priority = 0; priority <= RTL8367C_PRIMAX; priority++)
+    {
+        if ((retVal = rtl8367c_setAsicPriorityDot1qRemapping(priority, g_prioritytRemap[priority])) != RT_ERR_OK)
+            return retVal;
+
+        if ((retVal = rtl8367c_setAsicRemarkingDot1pParameter(priority, 0)) != RT_ERR_OK)
+            return retVal;
+
+        if ((retVal = rtl8367c_setAsicRemarkingDscpParameter(priority, 0)) != RT_ERR_OK)
+            return retVal;
+    }
+
+    /*Set DSCP Priority*/
+    for (dscp = 0; dscp <= 63; dscp++)
+    {
+        if ((retVal = rtl8367c_setAsicPriorityDscpBased(dscp, 0)) != RT_ERR_OK)
+            return retVal;
+    }
+
+    /* Finetune B/T value */
+    if ((retVal = rtl8367c_setAsicReg(0x1722, 0x1158)) != RT_ERR_OK)
+        return retVal;
+
+    return RT_ERR_OK;
+}
+
+/* Function Name:
+ *      rtl8367c_setAsicPriorityPortBased
+ * Description:
+ *      Set port based priority
+ * Input:
+ *      port         - Physical port number (0~7)
+ *      priority     - Priority value
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK                 - Success
+ *      RT_ERR_SMI              - SMI access error
+ *      RT_ERR_PORT_ID          - Invalid port number
+ *      RT_ERR_QOS_INT_PRIORITY    - Invalid priority
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsicPriorityPortBased(uint32_t port, uint32_t priority)
+{
+    int32_t retVal;
+
+    if (port > RTL8367C_PORTIDMAX)
+        return RT_ERR_PORT_ID;
+
+    if (priority > RTL8367C_PRIMAX)
+        return RT_ERR_QOS_INT_PRIORITY;
+
+    if (port < 8)
+    {
+        retVal = rtl8367c_setAsicRegBits(RTL8367C_QOS_PORTBASED_PRIORITY_REG(port), RTL8367C_QOS_PORTBASED_PRIORITY_MASK(port), priority);
+        if (retVal != RT_ERR_OK)
+            return retVal;
+    }
+    else
+    {
+        retVal = rtl8367c_setAsicRegBits(RTL8367C_REG_QOS_PORTBASED_PRIORITY_CTRL2, 0x7 << ((port - 8) << 2), priority);
+        if (retVal != RT_ERR_OK)
+            return retVal;
+    }
+
+    return RT_ERR_OK;
+}
+
+int32_t rtl8367::rtk_qos_portPri_set(rtk_port_t port, uint32_t int_pri)
+{
+    int32_t retVal;
+
+    /* Check Port Valid */
+    RTK_CHK_PORT_VALID(port);
+
+    if (int_pri > RTL8367C_PRIMAX)
+        return RT_ERR_QOS_INT_PRIORITY;
+
+    if ((retVal = rtl8367c_setAsicPriorityPortBased(rtk_switch_port_L2P_get(port), int_pri)) != RT_ERR_OK)
+        return retVal;
 
     return RT_ERR_OK;
 }
