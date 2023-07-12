@@ -141,6 +141,158 @@
 #define RTK_CMD_MASK 0x1
 #define RTK_PHY_BUSY_OFFSET 2
 
+#define RTL8367C_MAC7 7
+#define RTL8367C_EXTNO 3
+
+#define RTL8367C_RTCT_PAGE (11)
+#define RTL8367C_RTCT_RESULT_A_REG (27)
+#define RTL8367C_RTCT_RESULT_B_REG (28)
+#define RTL8367C_RTCT_RESULT_C_REG (29)
+#define RTL8367C_RTCT_RESULT_D_REG (30)
+#define RTL8367C_RTCT_STATUS_REG (26)
+
+enum L2_SECURITY_BEHAVE
+{
+    L2_BEHAVE_FLOODING = 0,
+    L2_BEHAVE_DROP,
+    L2_BEHAVE_TRAP,
+    L2_BEHAVE_END
+};
+
+enum L2_UNDA_BEHAVE
+{
+    L2_UNDA_BEHAVE_FLOODING_PMASK = 0,
+    L2_UNDA_BEHAVE_DROP,
+    L2_UNDA_BEHAVE_TRAP,
+    L2_UNDA_BEHAVE_FLOODING,
+    L2_UNDA_BEHAVE_END
+};
+
+enum L2_SECURITY_SA_BEHAVE
+{
+    L2_BEHAVE_SA_FLOODING = 0,
+    L2_BEHAVE_SA_DROP,
+    L2_BEHAVE_SA_TRAP,
+    L2_BEHAVE_SA_COPY28051,
+    L2_BEHAVE_SA_END
+};
+
+/* enum for port current link speed */
+enum SPEEDMODE
+{
+    SPD_10M = 0,
+    SPD_100M,
+    SPD_1000M,
+    SPD_2500M
+};
+
+/* enum for mac link mode */
+enum LINKMODE
+{
+    MAC_NORMAL = 0,
+    MAC_FORCE,
+};
+
+/* enum for port current link duplex mode */
+enum DUPLEXMODE
+{
+    HALF_DUPLEX = 0,
+    FULL_DUPLEX
+};
+
+/* enum for port current MST mode */
+enum MSTMODE
+{
+    SLAVE_MODE = 0,
+    MASTER_MODE
+};
+
+enum EXTMODE
+{
+    EXT_DISABLE = 0,
+    EXT_RGMII,
+    EXT_MII_MAC,
+    EXT_MII_PHY,
+    EXT_TMII_MAC,
+    EXT_TMII_PHY,
+    EXT_GMII,
+    EXT_RMII_MAC,
+    EXT_RMII_PHY,
+    EXT_SGMII,
+    EXT_HSGMII,
+    EXT_1000X_100FX,
+    EXT_1000X,
+    EXT_100FX,
+    EXT_RGMII_2,
+    EXT_MII_MAC_2,
+    EXT_MII_PHY_2,
+    EXT_TMII_MAC_2,
+    EXT_TMII_PHY_2,
+    EXT_RMII_MAC_2,
+    EXT_RMII_PHY_2,
+    EXT_END
+};
+
+enum DOSTYPE
+{
+    DOS_DAEQSA = 0,
+    DOS_LANDATTACKS,
+    DOS_BLATATTACKS,
+    DOS_SYNFINSCAN,
+    DOS_XMASCAN,
+    DOS_NULLSCAN,
+    DOS_SYN1024,
+    DOS_TCPSHORTHDR,
+    DOS_TCPFRAGERROR,
+    DOS_ICMPFRAGMENT,
+    DOS_END,
+
+};
+
+typedef struct rtl8367c_port_status_s
+{
+
+    uint16_t lpi1000;
+    uint16_t lpi100;
+    uint16_t mstfault;
+    uint16_t mstmode;
+    uint16_t nway;
+    uint16_t txpause;
+    uint16_t rxpause;
+    uint16_t link;
+    uint16_t duplex;
+    uint16_t speed;
+
+} rtl8367c_port_status_t;
+
+typedef struct rtct_result_s
+{
+    uint32_t channelAShort;
+    uint32_t channelBShort;
+    uint32_t channelCShort;
+    uint32_t channelDShort;
+
+    uint32_t channelAOpen;
+    uint32_t channelBOpen;
+    uint32_t channelCOpen;
+    uint32_t channelDOpen;
+
+    uint32_t channelAMismatch;
+    uint32_t channelBMismatch;
+    uint32_t channelCMismatch;
+    uint32_t channelDMismatch;
+
+    uint32_t channelALinedriver;
+    uint32_t channelBLinedriver;
+    uint32_t channelCLinedriver;
+    uint32_t channelDLinedriver;
+
+    uint32_t channelALen;
+    uint32_t channelBLen;
+    uint32_t channelCLen;
+    uint32_t channelDLen;
+} rtl8367c_port_rtct_result_t;
+
 typedef struct rtl8367c_port_ability_s
 {
     uint16_t forcemode;

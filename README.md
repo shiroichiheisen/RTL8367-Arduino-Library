@@ -82,6 +82,15 @@ This library is based on the realteck original library, theres a programming gui
 - [x] rtk_rate_stormControlMeterIdx_set
 - [x] rtk_rate_stormControlMeterIdx_get
 - [x] rtk_mirror_portBased_set
+- [x] rtk_port_macForceLinkExt_set
+- [x] rtk_port_macForceLinkExt_get
+- [x] rtk_port_rgmiiDelayExt_set
+- [x] rtk_port_rgmiiDelayExt_get
+- [x] rtk_port_isolation_set
+- [x] rtk_port_isolation_get
+- [x] rtk_l2_limitLearningCnt_set
+- [x] rtk_l2_limitLearningCnt_get
+- [x] rtk_l2_learningCnt_get
 
 # tested on:
 
