@@ -1,5 +1,5 @@
 #include "rtl8367.h"
-#include "i2cPart.h"
+#include "rtl8367c_i2cPart.h"
 
 rtl8367::rtl8367(uint16_t usTransmissionDelay)
 {
@@ -18,6 +18,26 @@ void rtl8367::setTransmissionPins(uint8_t sckPin, uint8_t sdaPin)
 void rtl8367::setTransmissionDelay(uint16_t usTransmissionDelay)
 {
     this->usTransmissionDelay = usTransmissionDelay;
+}
+
+int32_t rtl8367::rtk_switch_logicalPortCheck(uint32_t logicalPort)
+{
+
+    if (logicalPort >= RTK_SWITCH_PORT_NUM)
+        return RT_ERR_FAILED;
+
+    if (halCtrl.l2p_port[logicalPort] == 0xFF)
+        return RT_ERR_FAILED;
+
+    return RT_ERR_OK;
+}
+
+int32_t rtl8367::rtk_switch_isPortMaskValid(rtk_portmask_t *pPmask)
+{
+    if ((pPmask->bits[0] | halCtrl.valid_portmask) != halCtrl.valid_portmask)
+        return RT_ERR_FAILED;
+    else
+        return RT_ERR_OK;
 }
 
 /* Function Name:
@@ -612,8 +632,8 @@ int32_t rtl8367::rtk_vlan_init()
     /* Set a default VLAN with vid 1 to 4K table for all ports */
     memset(&vlan4K, 0, sizeof(rtl8367c_user_vlan4kentry));
     vlan4K.vid = 1;
-    vlan4K.mbr = RTK_PHY_PORTMASK_ALL;
-    vlan4K.untag = RTK_PHY_PORTMASK_ALL;
+    vlan4K.mbr = halCtrl.phy_portmask;
+    vlan4K.untag = halCtrl.phy_portmask;
     vlan4K.fid_msti = 0;
     if ((retVal = rtl8367c_setAsicVlan4kEntry(&vlan4K)) != RT_ERR_OK)
         return retVal;
@@ -621,7 +641,7 @@ int32_t rtl8367::rtk_vlan_init()
     /* Also set the default VLAN to 32 member configuration index 0 */
     memset(&vlanMC, 0, sizeof(rtl8367c_vlanconfiguser));
     vlanMC.evid = 1;
-    vlanMC.mbr = RTK_PHY_PORTMASK_ALL;
+    vlanMC.mbr = halCtrl.phy_portmask;
     vlanMC.fid_msti = 0;
     if ((retVal = rtl8367c_setAsicVlanMemberConfig(0, &vlanMC)) != RT_ERR_OK)
         return retVal;
@@ -749,7 +769,7 @@ int32_t rtl8367::rtk_vlan_set(uint32_t vid, rtk_vlan_cfg_t *pVlanCfg)
         return RT_ERR_ENABLE;
 
     /* Meter ID */
-    if (pVlanCfg->meteridx > RTK_MAX_METER_ID)
+    if (pVlanCfg->meteridx > halCtrl.max_meter_id)
         return RT_ERR_INPUT;
 
     /* VLAN based priority */
@@ -993,6 +1013,14 @@ int32_t rtl8367::rtl8367c_getAsicVlan4kEntry(rtl8367c_user_vlan4kentry *pVlan4kE
     return RT_ERR_OK;
 }
 
+uint32_t rtl8367::rtk_switch_port_P2L_get(uint32_t physicalPort)
+{
+    if (physicalPort >= RTK_SWITCH_PORT_NUM)
+        return UNDEFINE_PORT;
+
+    return (halCtrl.p2l_port[physicalPort]);
+}
+
 /* Function Name:
  *      rtk_switch_portmask_P2L_get
  * Description:
@@ -1160,15 +1188,6 @@ int32_t rtl8367::rtk_vlan_get(uint32_t vid, rtk_vlan_cfg_t *pVlanCfg)
 
     return RT_ERR_OK;
 }
-
-#define RTK_CHK_PORT_VALID(__port__)                            \
-    do                                                          \
-    {                                                           \
-        if (rtk_switch_logicalPortCheck(__port__) != RT_ERR_OK) \
-        {                                                       \
-            return RT_ERR_PORT_ID;                              \
-        }                                                       \
-    } while (0)
 
 /* Function Name:
  *      rtk_vlan_checkAndCreateMbr
@@ -3461,7 +3480,7 @@ int32_t rtl8367::rtk_l2_addr_next_get(rtk_l2_read_method_t read_method, rtk_port
     /* Check Port Valid */
     RTK_CHK_PORT_VALID(port);
 
-    if (*pAddress > RTK_MAX_LUT_ADDR_ID)
+    if (*pAddress > halCtrl.max_lut_addr_num - 1)
         return RT_ERR_L2_L2UNI_PARAM;
 
     memset(&l2Table, 0, sizeof(rtl8367c_luttb));
@@ -3727,7 +3746,7 @@ int32_t rtl8367::rtk_l2_mcastAddr_next_get(uint32_t *pAddress, rtk_l2_mcastAddr_
     if ((pAddress == NULL) || (pMcastAddr == NULL))
         return RT_ERR_INPUT;
 
-    if (*pAddress > RTK_MAX_LUT_ADDR_ID)
+    if (*pAddress > halCtrl.max_lut_addr_num - 1)
         return RT_ERR_L2_L2UNI_PARAM;
 
     memset(&l2Table, 0, sizeof(rtl8367c_luttb));
@@ -3921,7 +3940,7 @@ int32_t rtl8367::rtk_l2_ipMcastAddr_next_get(uint32_t *pAddress, rtk_l2_ipMcastA
     if ((pAddress == NULL) || (pIpMcastAddr == NULL))
         return RT_ERR_INPUT;
 
-    if (*pAddress > RTK_MAX_LUT_ADDR_ID)
+    if (*pAddress > halCtrl.max_lut_addr_num - 1)
         return RT_ERR_L2_L2UNI_PARAM;
 
     memset(&l2Table, 0, sizeof(rtl8367c_luttb));
@@ -4111,7 +4130,7 @@ int32_t rtl8367::rtk_l2_ipVidMcastAddr_next_get(uint32_t *pAddress, rtk_l2_ipVid
     if ((pAddress == NULL) || (pIpVidMcastAddr == NULL))
         return RT_ERR_INPUT;
 
-    if (*pAddress > RTK_MAX_LUT_ADDR_ID)
+    if (*pAddress > halCtrl.max_lut_addr_num - 1)
         return RT_ERR_L2_L2UNI_PARAM;
 
     memset(&l2Table, 0, sizeof(rtl8367c_luttb));
@@ -6535,3 +6554,5 @@ int32_t rtl8367::rtk_port_phyAutoNegoAbility_get(rtk_port_t port, rtk_port_phy_a
 
     return RT_ERR_OK;
 }
+
+// -------------------------- LED --------------------------
