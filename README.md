@@ -12,9 +12,9 @@ This library is based on the realteck original library, theres a programming gui
 
 # Functions Added:
 
-- [x] Read the port status - getPortStatus - Workin
-- [x] Probe the ic to see if its connected - probeIc - Working
-- [x] Init Vlan - rtk_vlan_init - Working
+- [x] Read the port status - getPortStatus - tested
+- [x] Probe the ic to see if its connected - probeIc - tested
+- [x] Init Vlan - rtk_vlan_init - tested
 - [x] Set Vlan - rtk_vlan_set
 - [x] Get Vlan - rtk_vlan_get
 - [x] rtk_vlan_portPvid_set
@@ -24,6 +24,13 @@ This library is based on the realteck original library, theres a programming gui
 - [x] rtk_vlan_tagMode_set
 - [x] rtk_vlan_transparent_set
 - [x] rtk_svlan_init
+- [x] rtk_svlan_servicePort_add
+- [x] rtk_svlan_tpidEntry_set
+- [x] rtk_svlan_memberPortEntry_set
+- [x] rtk_svlan_defaultSvlan_set
+- [x] rtk_svlan_c2s_add
+- [x] rtk_svlan_sp2c_add
+- [x] rtk_svlan_untag_action_set
 
 # tested on:
 

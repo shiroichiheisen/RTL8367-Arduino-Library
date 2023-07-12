@@ -119,6 +119,26 @@ enum RTL8367C_SPRISEL
     SPRISEL_END
 };
 
+typedef struct rtk_svlan_memberCfg_s
+{
+    uint32_t svid;
+    rtk_portmask_t memberport;
+    rtk_portmask_t untagport;
+    uint32_t fiden;
+    uint32_t fid;
+    uint32_t priority;
+    uint32_t efiden;
+    uint32_t efid;
+} rtk_svlan_memberCfg_t;
+
+typedef enum rtk_svlan_untag_action_e
+{
+    UNTAG_DROP = 0,
+    UNTAG_TRAP,
+    UNTAG_ASSIGN,
+    UNTAG_END
+} rtk_svlan_untag_action_t;
+
 class rtl8367
 {
 public:
@@ -146,6 +166,18 @@ public:
 
     int32_t rtk_svlan_init();
 
+    int32_t rtk_svlan_servicePort_add(rtk_port_t port);
+
+    int32_t rtk_svlan_memberPortEntry_set(uint32_t svid, rtk_svlan_memberCfg_t *pSvlan_cfg);
+
+    int32_t rtk_svlan_defaultSvlan_set(rtk_port_t port, uint32_t svid);
+
+    int32_t rtk_svlan_c2s_add(uint32_t vid, rtk_port_t src_port, uint32_t svid);
+
+    int32_t rtk_svlan_sp2c_add(uint32_t svid, rtk_port_t dst_port, uint32_t cvid);
+
+    int32_t rtk_svlan_untag_action_set(rtk_svlan_untag_action_t action, uint32_t svid);
+
     /* Function Name:
      *      rtk_switch_maxMeterId_get
      * Description:
@@ -168,7 +200,7 @@ public:
 #define RTK_MAX_METER_ID (rtk_switch_maxMeterId_get())
 
     int32_t rtk_vlan_set(uint32_t vid, rtk_vlan_cfg_t *pVlanCfg);
-    int32_t _rtk_vlan_get(uint32_t vid, rtk_vlan_cfg_t *pVlanCfg);
+    int32_t rtk_vlan_get(uint32_t vid, rtk_vlan_cfg_t *pVlanCfg);
 
 private:
 #define RTL8367C_REGBITLENGTH 16
@@ -200,6 +232,7 @@ private:
 #define RTL8367C_VLAN_PORTBASED_PRIORITY_MASK(port) (0x7 << RTL8367C_VLAN_PORTBASED_PRIORITY_OFFSET(port))
 #define RTL8367C_PORT_MISC_CFG_BASE RTL8367C_REG_PORT0_MISC_CFG
 #define RTL8367C_PORT_MISC_CFG_REG(port) (RTL8367C_PORT_MISC_CFG_BASE + (port << 5))
+#define RTL8367C_EFIDMAX 0x7
 
     /* Function Name:
      *      rtk_switch_logicalPortCheck
@@ -498,14 +531,6 @@ private:
 #define RTL8367C_VLAN_ACCEPT_FRAME_TYPE_REG(port) (RTL8367C_VLAN_ACCEPT_FRAME_TYPE_BASE + (port >> 3))
 #define RTL8367C_VLAN_ACCEPT_FRAME_TYPE_MASK(port) (RTL8367C_PORT0_FRAME_TYPE_MASK << ((port & 0x7) << 1))
 
-    typedef enum rtk_svlan_untag_action_e
-    {
-        UNTAG_DROP = 0,
-        UNTAG_TRAP,
-        UNTAG_ASSIGN,
-        UNTAG_END
-    } rtk_svlan_untag_action_t;
-
     typedef enum rtk_svlan_unmatch_action_e
     {
         UNMATCH_DROP = 0,
@@ -529,6 +554,9 @@ private:
 #define RTL8367C_SVLAN_S2C_ENTRY_BASE_REG(index) (RTL8367C_REG_SVLAN_SP2C_ENTRY0_CTRL0 + index * 2)
 #define RTL8367C_SVLAN_MC2S_LEN 5
 #define RTL8367C_SVLAN_MCAST2S_ENTRY_BASE_REG(index) (RTL8367C_REG_SVLAN_MCAST2S_ENTRY0_CTRL0 + index * 5)
+#define RTK_MAX_NUM_OF_PROTO_TYPE 0xFFFF
+#define RTK_MAX_NUM_OF_MSTI 0xF
+#define RTK_FID_MAX 0xF
 
     typedef enum rtk_svlan_lookupType_e
     {
@@ -576,6 +604,15 @@ private:
     void _rtl8367c_svlanMc2sStUser2Smi(rtl8367c_svlan_mc2s_t *pUserSt, uint16_t *pSmiSt);
     int32_t _rtk_svlan_lookupType_set(rtk_svlan_lookupType_t type);
     int32_t rtl8367c_setAsicSvlanLookupType(uint32_t type);
+    int32_t rtl8367c_getAsicSvlanUplinkPortMask(uint32_t *pPortmask);
+    int32_t rtk_svlan_tpidEntry_set(uint32_t svlan_tag_id);
+    int32_t rtl8367c_getAsicSvlanMemberConfiguration(uint32_t index, rtl8367c_svlan_memconf_t *pSvlanMemCfg);
+    void _rtl8367c_svlanConfStSmi2User(rtl8367c_svlan_memconf_t *pUserSt, uint16_t *pSmiSt);
+    int32_t rtl8367c_setAsicSvlanDefaultVlan(uint32_t port, uint32_t index);
+    int32_t rtl8367c_getAsicSvlanC2SConf(uint32_t index, uint32_t *pEvid, uint32_t *pPortmask, uint32_t *pSvidx);
+    int32_t rtl8367c_getAsicSvlanSP2CConf(uint32_t index, rtl8367c_svlan_s2c_t *pSvlanSp2cCfg);
+    void _rtl8367c_svlanSp2cStSmi2User(rtl8367c_svlan_s2c_t *pUserSt, uint16_t *pSmiSt);
+    int32_t rtl8367c_setAsicSvlanUntagVlan(uint32_t index);
 
     /* Function Name:
      *      rtk_switch_port_P2L_get
