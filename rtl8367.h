@@ -131,6 +131,24 @@ public:
 
     int32_t rtk_vlan_get(uint32_t, rtk_vlan_cfg_t *);
 
+    int32_t rtk_led_enable_set(rtk_led_group_t, rtk_portmask_t *);
+
+    int32_t rtk_led_operation_set(rtk_led_operation_t mode);
+
+    int32_t rtk_led_blinkRate_set(rtk_led_blink_rate_t blinkRate);
+
+    int32_t rtk_led_groupConfig_set(rtk_led_group_t group, rtk_led_congig_t config);
+
+    int32_t rtk_trap_rmaAction_set(rtk_trap_type_t type, rtk_trap_rma_action_t rma_action);
+
+    int32_t rtk_trap_rmaAction_get(rtk_trap_type_t type, rtk_trap_rma_action_t *pRma_action);
+
+    int32_t rtk_rate_stormControlPortEnable_set(rtk_port_t port, rtk_rate_storm_group_t stormType, rtk_enable_t enable);
+
+    int32_t rtk_rate_stormControlPortEnable_get(rtk_port_t port, rtk_rate_storm_group_t stormType, rtk_enable_t *pEnable);
+
+    int32_t rtk_rate_stormControlMeterIdx_set(rtk_port_t port, rtk_rate_storm_group_t stormType, uint32_t index);
+
 private:
     uint32_t vlan_mbrCfgVid[RTL8367C_CVIDXNO];
     vlan_mbrCfgType_t vlan_mbrCfgUsage[RTL8367C_CVIDXNO];
@@ -358,5 +376,30 @@ private:
     int32_t rtk_switch_portmask_P2L_get(uint32_t, rtk_portmask_t *);
     int32_t rtl8367c_getAsicVlanMemberConfig(uint32_t, rtl8367c_vlanconfiguser *);
     void _rtl8367c_VlanMCStSmi2User(uint16_t *, rtl8367c_vlanconfiguser *);
+    int32_t rtk_switch_isCPUPort(uint32_t logicalPort);
+    int32_t rtl8367c_setAsicLedGroupEnable(uint32_t group, uint32_t portmask);
+    int32_t rtl8367c_setAsicLedOperationMode(uint32_t mode);
+    int32_t rtl8367c_setAsicLedBlinkRate(uint32_t blinkRate);
+    int32_t rtl8367c_setAsicLedIndicateInfoConfig(uint32_t ledno, uint32_t config);
+    int32_t rtl8367c_getAsicRma(uint32_t index, rtl8367c_rma_t *pRmacfg);
+    int32_t rtl8367c_setAsicRma(uint32_t index, rtl8367c_rma_t *pRmacfg);
+    int32_t rtl8367c_getAsicRmaCdp(rtl8367c_rma_t *pRmacfg);
+    int32_t rtl8367c_setAsicRmaCdp(rtl8367c_rma_t *pRmacfg);
+    int32_t rtl8367c_setAsicRmaCsstp(rtl8367c_rma_t *pRmacfg);
+    int32_t rtl8367c_getAsicRmaCsstp(rtl8367c_rma_t *pRmacfg);
+    int32_t rtl8367c_setAsicRmaLldp(uint32_t enabled, rtl8367c_rma_t *pRmacfg);
+    int32_t rtl8367c_getAsicRmaLldp(uint32_t *pEnabled, rtl8367c_rma_t *pRmacfg);
+    int32_t rtl8367c_setAsicStormFilterUnknownUnicastEnable(uint32_t port, uint32_t enabled);
+    int32_t rtl8367c_setAsicStormFilterUnknownMulticastEnable(uint32_t port, uint32_t enabled);
+    int32_t rtl8367c_setAsicStormFilterMulticastEnable(uint32_t port, uint32_t enabled);
+    int32_t rtl8367c_setAsicStormFilterBroadcastEnable(uint32_t port, uint32_t enabled);
+    int32_t rtl8367c_getAsicStormFilterUnknownUnicastEnable(uint32_t port, uint32_t *pEnabled);
+    int32_t rtl8367c_getAsicStormFilterUnknownMulticastEnable(uint32_t port, uint32_t *pEnabled);
+    int32_t rtl8367c_getAsicStormFilterMulticastEnable(uint32_t port, uint32_t *pEnabled);
+    int32_t rtl8367c_getAsicStormFilterBroadcastEnable(uint32_t port, uint32_t *pEnabled);
+    int32_t rtl8367c_setAsicStormFilterUnknownUnicastMeter(uint32_t port, uint32_t meter);
+    int32_t rtl8367c_setAsicStormFilterUnknownMulticastMeter(uint32_t port, uint32_t meter);
+    int32_t rtl8367c_setAsicStormFilterMulticastMeter(uint32_t port, uint32_t meter);
+    int32_t rtl8367c_setAsicStormFilterBroadcastMeter(uint32_t port, uint32_t meter);
 };
 #endif

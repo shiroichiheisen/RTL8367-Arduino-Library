@@ -106,6 +106,298 @@
 #define RTL8367C_VLAN_ACCEPT_FRAME_TYPE_REG(port) (RTL8367C_VLAN_ACCEPT_FRAME_TYPE_BASE + (port >> 3))
 #define RTL8367C_VLAN_ACCEPT_FRAME_TYPE_MASK(port) (RTL8367C_PORT0_FRAME_TYPE_MASK << ((port & 0x7) << 1))
 
+#define RTL8367C_LEDGROUPNO 3
+#define RTL8367C_LEDGROUPMASK 0x7
+#define RTL8367C_LED_FORCE_MODE_BASE RTL8367C_REG_CPU_FORCE_LED0_CFG0
+#define RTL8367C_LED_FORCE_CTRL RTL8367C_REG_CPU_FORCE_LED_CFG
+
+#define RTL8367C_RMAMAX 0x2F
+
+#define STORM_UNUC_INDEX 28
+#define STORM_UNMC_INDEX 29
+#define STORM_MC_INDEX 30
+#define STORM_BC_INDEX 31
+
+#define RTK_METER_NUM (RTK_MAX_METER_ID + 1)
+
+typedef enum rtk_meter_type_e
+{
+    METER_TYPE_KBPS = 0, /* Kbps */
+    METER_TYPE_PPS,      /* Packet per second */
+    METER_TYPE_END
+} rtk_meter_type_t;
+
+typedef enum rtk_rate_storm_group_e
+{
+    STORM_GROUP_UNKNOWN_UNICAST = 0,
+    STORM_GROUP_UNKNOWN_MULTICAST,
+    STORM_GROUP_MULTICAST,
+    STORM_GROUP_BROADCAST,
+    STORM_GROUP_END
+} rtk_rate_storm_group_t;
+
+typedef enum rtk_storm_bypass_e
+{
+    BYPASS_BRG_GROUP = 0,
+    BYPASS_FD_PAUSE,
+    BYPASS_SP_MCAST,
+    BYPASS_1X_PAE,
+    BYPASS_UNDEF_BRG_04,
+    BYPASS_UNDEF_BRG_05,
+    BYPASS_UNDEF_BRG_06,
+    BYPASS_UNDEF_BRG_07,
+    BYPASS_PROVIDER_BRIDGE_GROUP_ADDRESS,
+    BYPASS_UNDEF_BRG_09,
+    BYPASS_UNDEF_BRG_0A,
+    BYPASS_UNDEF_BRG_0B,
+    BYPASS_UNDEF_BRG_0C,
+    BYPASS_PROVIDER_BRIDGE_GVRP_ADDRESS,
+    BYPASS_8021AB,
+    BYPASS_UNDEF_BRG_0F,
+    BYPASS_BRG_MNGEMENT,
+    BYPASS_UNDEFINED_11,
+    BYPASS_UNDEFINED_12,
+    BYPASS_UNDEFINED_13,
+    BYPASS_UNDEFINED_14,
+    BYPASS_UNDEFINED_15,
+    BYPASS_UNDEFINED_16,
+    BYPASS_UNDEFINED_17,
+    BYPASS_UNDEFINED_18,
+    BYPASS_UNDEFINED_19,
+    BYPASS_UNDEFINED_1A,
+    BYPASS_UNDEFINED_1B,
+    BYPASS_UNDEFINED_1C,
+    BYPASS_UNDEFINED_1D,
+    BYPASS_UNDEFINED_1E,
+    BYPASS_UNDEFINED_1F,
+    BYPASS_GMRP,
+    BYPASS_GVRP,
+    BYPASS_UNDEF_GARP_22,
+    BYPASS_UNDEF_GARP_23,
+    BYPASS_UNDEF_GARP_24,
+    BYPASS_UNDEF_GARP_25,
+    BYPASS_UNDEF_GARP_26,
+    BYPASS_UNDEF_GARP_27,
+    BYPASS_UNDEF_GARP_28,
+    BYPASS_UNDEF_GARP_29,
+    BYPASS_UNDEF_GARP_2A,
+    BYPASS_UNDEF_GARP_2B,
+    BYPASS_UNDEF_GARP_2C,
+    BYPASS_UNDEF_GARP_2D,
+    BYPASS_UNDEF_GARP_2E,
+    BYPASS_UNDEF_GARP_2F,
+    BYPASS_IGMP,
+    BYPASS_CDP,
+    BYPASS_CSSTP,
+    BYPASS_LLDP,
+    BYPASS_END,
+} rtk_storm_bypass_t;
+
+enum RTL8367C_RMAOP
+{
+    RMAOP_FORWARD = 0,
+    RMAOP_TRAP_TO_CPU,
+    RMAOP_DROP,
+    RMAOP_FORWARD_EXCLUDE_CPU,
+    RMAOP_END
+};
+
+typedef struct rtl8367c_rma_s
+{
+    uint16_t operation;
+    uint16_t discard_storm_filter;
+    uint16_t trap_priority;
+    uint16_t keep_format;
+    uint16_t vlan_leaky;
+    uint16_t portiso_leaky;
+} rtl8367c_rma_t;
+
+typedef enum rtk_trap_type_e
+{
+    TRAP_BRG_GROUP = 0,
+    TRAP_FD_PAUSE,
+    TRAP_SP_MCAST,
+    TRAP_1X_PAE,
+    TRAP_UNDEF_BRG_04,
+    TRAP_UNDEF_BRG_05,
+    TRAP_UNDEF_BRG_06,
+    TRAP_UNDEF_BRG_07,
+    TRAP_PROVIDER_BRIDGE_GROUP_ADDRESS,
+    TRAP_UNDEF_BRG_09,
+    TRAP_UNDEF_BRG_0A,
+    TRAP_UNDEF_BRG_0B,
+    TRAP_UNDEF_BRG_0C,
+    TRAP_PROVIDER_BRIDGE_GVRP_ADDRESS,
+    TRAP_8021AB,
+    TRAP_UNDEF_BRG_0F,
+    TRAP_BRG_MNGEMENT,
+    TRAP_UNDEFINED_11,
+    TRAP_UNDEFINED_12,
+    TRAP_UNDEFINED_13,
+    TRAP_UNDEFINED_14,
+    TRAP_UNDEFINED_15,
+    TRAP_UNDEFINED_16,
+    TRAP_UNDEFINED_17,
+    TRAP_UNDEFINED_18,
+    TRAP_UNDEFINED_19,
+    TRAP_UNDEFINED_1A,
+    TRAP_UNDEFINED_1B,
+    TRAP_UNDEFINED_1C,
+    TRAP_UNDEFINED_1D,
+    TRAP_UNDEFINED_1E,
+    TRAP_UNDEFINED_1F,
+    TRAP_GMRP,
+    TRAP_GVRP,
+    TRAP_UNDEF_GARP_22,
+    TRAP_UNDEF_GARP_23,
+    TRAP_UNDEF_GARP_24,
+    TRAP_UNDEF_GARP_25,
+    TRAP_UNDEF_GARP_26,
+    TRAP_UNDEF_GARP_27,
+    TRAP_UNDEF_GARP_28,
+    TRAP_UNDEF_GARP_29,
+    TRAP_UNDEF_GARP_2A,
+    TRAP_UNDEF_GARP_2B,
+    TRAP_UNDEF_GARP_2C,
+    TRAP_UNDEF_GARP_2D,
+    TRAP_UNDEF_GARP_2E,
+    TRAP_UNDEF_GARP_2F,
+    TRAP_CDP,
+    TRAP_CSSTP,
+    TRAP_LLDP,
+    TRAP_END,
+} rtk_trap_type_t;
+
+typedef enum rtk_mcast_type_e
+{
+    MCAST_L2 = 0,
+    MCAST_IPV4,
+    MCAST_IPV6,
+    MCAST_END
+} rtk_mcast_type_t;
+
+typedef enum rtk_trap_mcast_action_e
+{
+    MCAST_ACTION_FORWARD = 0,
+    MCAST_ACTION_DROP,
+    MCAST_ACTION_TRAP2CPU,
+    MCAST_ACTION_ROUTER_PORT,
+    MCAST_ACTION_DROP_EX_RMA,
+    MCAST_ACTION_END
+} rtk_trap_mcast_action_t;
+
+typedef enum rtk_trap_rma_action_e
+{
+    RMA_ACTION_FORWARD = 0,
+    RMA_ACTION_TRAP2CPU,
+    RMA_ACTION_DROP,
+    RMA_ACTION_FORWARD_EXCLUDE_CPU,
+    RMA_ACTION_END
+} rtk_trap_rma_action_t;
+
+typedef enum rtk_trap_ucast_action_e
+{
+    UCAST_ACTION_FORWARD_PMASK = 0,
+    UCAST_ACTION_DROP,
+    UCAST_ACTION_TRAP2CPU,
+    UCAST_ACTION_FLOODING,
+    UCAST_ACTION_END
+} rtk_trap_ucast_action_t;
+
+typedef enum rtk_trap_ucast_type_e
+{
+    UCAST_UNKNOWNDA = 0,
+    UCAST_UNKNOWNSA,
+    UCAST_UNMATCHSA,
+    UCAST_END
+} rtk_trap_ucast_type_t;
+
+typedef enum rtk_trap_reason_type_e
+{
+    TRAP_REASON_RMA = 0,
+    TRAP_REASON_OAM,
+    TRAP_REASON_1XUNAUTH,
+    TRAP_REASON_VLANSTACK,
+    TRAP_REASON_UNKNOWNMC,
+    TRAP_REASON_END,
+} rtk_trap_reason_type_t;
+
+typedef enum rtk_led_operation_e
+{
+    LED_OP_SCAN = 0,
+    LED_OP_PARALLEL,
+    LED_OP_SERIAL,
+    LED_OP_END,
+} rtk_led_operation_t;
+
+typedef enum rtk_led_active_e
+{
+    LED_ACTIVE_HIGH = 0,
+    LED_ACTIVE_LOW,
+    LED_ACTIVE_END,
+} rtk_led_active_t;
+
+typedef enum rtk_led_config_e
+{
+    LED_CONFIG_LEDOFF = 0,
+    LED_CONFIG_DUPCOL,
+    LED_CONFIG_LINK_ACT,
+    LED_CONFIG_SPD1000,
+    LED_CONFIG_SPD100,
+    LED_CONFIG_SPD10,
+    LED_CONFIG_SPD1000ACT,
+    LED_CONFIG_SPD100ACT,
+    LED_CONFIG_SPD10ACT,
+    LED_CONFIG_SPD10010ACT,
+    LED_CONFIG_LOOPDETECT,
+    LED_CONFIG_EEE,
+    LED_CONFIG_LINKRX,
+    LED_CONFIG_LINKTX,
+    LED_CONFIG_MASTER,
+    LED_CONFIG_ACT,
+    LED_CONFIG_END,
+} rtk_led_congig_t;
+
+typedef struct rtk_led_ability_s
+{
+    rtk_enable_t link_10m;
+    rtk_enable_t link_100m;
+    rtk_enable_t link_500m;
+    rtk_enable_t link_1000m;
+    rtk_enable_t act_rx;
+    rtk_enable_t act_tx;
+} rtk_led_ability_t;
+
+typedef enum rtk_led_blink_rate_e
+{
+    LED_BLINKRATE_32MS = 0,
+    LED_BLINKRATE_64MS,
+    LED_BLINKRATE_128MS,
+    LED_BLINKRATE_256MS,
+    LED_BLINKRATE_512MS,
+    LED_BLINKRATE_1024MS,
+    LED_BLINKRATE_48MS,
+    LED_BLINKRATE_96MS,
+    LED_BLINKRATE_END,
+} rtk_led_blink_rate_t;
+
+typedef enum rtk_led_group_e
+{
+    LED_GROUP_0 = 0,
+    LED_GROUP_1,
+    LED_GROUP_2,
+    LED_GROUP_END
+} rtk_led_group_t;
+
+typedef enum rtk_led_force_mode_e
+{
+    LED_FORCE_NORMAL = 0,
+    LED_FORCE_BLINK,
+    LED_FORCE_OFF,
+    LED_FORCE_ON,
+    LED_FORCE_END
+} rtk_led_force_mode_t;
+
 typedef enum rtk_svlan_lookupType_e
 {
     SVLAN_LOOKUP_S64MBRCGF = 0,
@@ -819,10 +1111,94 @@ typedef enum rtk_port_media_e
     PORT_MEDIA_END
 } rtk_port_media_t;
 
-typedef enum rtk_led_group_e
+enum RTL8367C_LEDOP
 {
-    LED_GROUP_0 = 0,
-    LED_GROUP_1,
-    LED_GROUP_2,
-    LED_GROUP_END
-} rtk_led_group_t;
+
+    LEDOP_SCAN0 = 0,
+    LEDOP_SCAN1,
+    LEDOP_PARALLEL,
+    LEDOP_SERIAL,
+    LEDOP_END,
+};
+
+enum RTL8367C_LEDSERACT
+{
+
+    LEDSERACT_HIGH = 0,
+    LEDSERACT_LOW,
+    LEDSERACT_MAX,
+};
+
+enum RTL8367C_LEDSER
+{
+
+    LEDSER_16G = 0,
+    LEDSER_8G,
+    LEDSER_MAX,
+};
+
+enum RTL8367C_LEDCONF
+{
+
+    LEDCONF_LEDOFF = 0,
+    LEDCONF_DUPCOL,
+    LEDCONF_LINK_ACT,
+    LEDCONF_SPD1000,
+    LEDCONF_SPD100,
+    LEDCONF_SPD10,
+    LEDCONF_SPD1000ACT,
+    LEDCONF_SPD100ACT,
+    LEDCONF_SPD10ACT,
+    LEDCONF_SPD10010ACT,
+    LEDCONF_LOOPDETECT,
+    LEDCONF_EEE,
+    LEDCONF_LINKRX,
+    LEDCONF_LINKTX,
+    LEDCONF_MASTER,
+    LEDCONF_ACT,
+    LEDCONF_END
+};
+
+enum RTL8367C_LEDBLINKRATE
+{
+
+    LEDBLINKRATE_32MS = 0,
+    LEDBLINKRATE_64MS,
+    LEDBLINKRATE_128MS,
+    LEDBLINKRATE_256MS,
+    LEDBLINKRATE_512MS,
+    LEDBLINKRATE_1024MS,
+    LEDBLINKRATE_48MS,
+    LEDBLINKRATE_96MS,
+    LEDBLINKRATE_END,
+};
+
+enum RTL8367C_LEDFORCEMODE
+{
+
+    LEDFORCEMODE_NORMAL = 0,
+    LEDFORCEMODE_BLINK,
+    LEDFORCEMODE_OFF,
+    LEDFORCEMODE_ON,
+    LEDFORCEMODE_END,
+};
+
+enum RTL8367C_LEDFORCERATE
+{
+
+    LEDFORCERATE_512MS = 0,
+    LEDFORCERATE_1024MS,
+    LEDFORCERATE_2048MS,
+    LEDFORCERATE_NORMAL,
+    LEDFORCERATE_END,
+
+};
+
+enum RTL8367C_LEDMODE
+{
+    RTL8367C_LED_MODE_0 = 0,
+    RTL8367C_LED_MODE_1,
+    RTL8367C_LED_MODE_2,
+    RTL8367C_LED_MODE_3,
+    RTL8367C_LED_MODE_END
+};

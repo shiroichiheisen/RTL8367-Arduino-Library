@@ -48,7 +48,7 @@ This library is based on the realteck original library, theres a programming gui
 - [x] rtk_l2_ipVidMcastAddr_del
 - [x] rtk_l2_ipVidMcastAddr_get
 - [x] rtk_l2_ipVidMcastAddr_next_get
-- [ ] rtk_l2_flushtype_set - Dont contain in api 1.3.11 or 1.3.12
+- [ ] rtk_l2_flushtype_set - Doesnt contain in api 1.3.11 or 1.3.12 (I dont have the earlier versions to check if it exists)
 - [x] rtk_qos_init
 - [x] rtk_qos_portPri_set
 - [x] rtk_qos_1pPriRemap_set
@@ -71,6 +71,15 @@ This library is based on the realteck original library, theres a programming gui
 - [x] rtk_port_phyEnableAll_set
 - [x] rtk_port_phyAutoNegoAbility_set
 - [x] rtk_port_phyAutoNegoAbility_get
+- [x] rtk_led_enable_set
+- [x] rtk_led_operation_set
+- [x] rtk_led_blinkRate_set
+- [x] rtk_led_groupConfig_set
+- [x] rtk_trap_rmaAction_set
+- [x] rtk_trap_rmaAction_get
+- [x] rtk_rate_stormControlPortEnable_set
+- [x] rtk_rate_stormControlPortEnable_get
+- [x] rtk_rate_stormControlMeterIdx_set
 
 # tested on:
 

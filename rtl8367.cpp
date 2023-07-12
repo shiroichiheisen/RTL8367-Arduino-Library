@@ -6556,3 +6556,1141 @@ int32_t rtl8367::rtk_port_phyAutoNegoAbility_get(rtk_port_t port, rtk_port_phy_a
 }
 
 // -------------------------- LED --------------------------
+
+/* Function Name:
+ *      rtk_switch_isCPUPort
+ * Description:
+ *      Check is logical port a CPU port
+ * Input:
+ *      logicalPort     - logical port ID
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK       - Port ID is a CPU port
+ *      RT_ERR_FAILED   - Port ID is not a CPU port
+ *      RT_ERR_NOT_INIT - Not Initialize
+ * Note:
+ *
+ */
+int32_t rtl8367::rtk_switch_isCPUPort(uint32_t logicalPort)
+{
+
+    if (logicalPort >= RTK_SWITCH_PORT_NUM)
+        return RT_ERR_FAILED;
+
+    if (((0x01 << logicalPort) & halCtrl.valid_cpu_portmask) != 0)
+        return RT_ERR_OK;
+    else
+        return RT_ERR_FAILED;
+}
+
+/*
+@func int32_t | rtl8367c_setAsicLedGroupEnable | Turn on/off Led of all system ports
+@parm uint32_t | group | LED group id.
+@parm uint32_t | portmask | LED port mask.
+@rvalue RT_ERR_OK | Success.
+@rvalue RT_ERR_SMI | SMI access error.
+@rvalue RT_ERR_PORT_ID | Invalid port number.
+@rvalue RT_ERR_INPUT | Invalid input value.
+@comm
+    The API can turn on/off leds of dedicated port while indicated information configuration of LED group is set to force mode.
+ */
+int32_t rtl8367::rtl8367c_setAsicLedGroupEnable(uint32_t group, uint32_t portmask)
+{
+    int32_t retVal;
+    uint32_t regAddr;
+    uint32_t regDataMask;
+
+    if (group >= RTL8367C_LEDGROUPNO)
+        return RT_ERR_INPUT;
+
+    regAddr = RTL8367C_REG_PARA_LED_IO_EN1 + group / 2;
+    regDataMask = 0xFF << ((group % 2) * 8);
+    retVal = rtl8367c_setAsicRegBits(regAddr, regDataMask, portmask & 0xff);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    regAddr = RTL8367C_REG_PARA_LED_IO_EN3;
+    regDataMask = 0x3 << (group * 2);
+    retVal = rtl8367c_setAsicRegBits(regAddr, regDataMask, (portmask >> 8) & 0x7);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    return RT_ERR_OK;
+}
+
+int32_t rtl8367::rtk_led_enable_set(rtk_led_group_t group, rtk_portmask_t *pPortmask)
+{
+    int32_t retVal;
+    uint32_t pmask;
+    uint32_t port;
+
+    if (group >= LED_GROUP_END)
+        return RT_ERR_INPUT;
+
+    RTK_CHK_PORTMASK_VALID(pPortmask);
+
+    RTK_PORTMASK_SCAN((*pPortmask), port)
+    {
+        if (rtk_switch_isCPUPort(port) == RT_ERR_OK)
+            return RT_ERR_PORT_MASK;
+    }
+
+    if ((retVal = rtk_switch_portmask_L2P_get(pPortmask, &pmask)) != RT_ERR_OK)
+        return retVal;
+
+    if ((retVal = rtl8367c_setAsicLedGroupEnable(group, pmask)) != RT_ERR_OK)
+        return retVal;
+
+    return RT_ERR_OK;
+}
+
+/*
+@func int32_t | rtl8367c_setAsicLedOperationMode | Set LED operation mode
+@parm uint32_t | mode | LED mode. 1:scan mode 1, 2:parallel mode, 3:mdx mode (serial mode)
+@rvalue RT_ERR_OK | Success.
+@rvalue RT_ERR_SMI | SMI access error.
+@rvalue RT_ERR_INPUT | Invalid input value.
+@comm
+    The API can turn on/off led serial mode and set signal to active high/low.
+ */
+int32_t rtl8367::rtl8367c_setAsicLedOperationMode(uint32_t mode)
+{
+    int32_t retVal;
+
+    /* Invalid input parameter */
+    if (mode >= LEDOP_END)
+        return RT_ERR_INPUT;
+
+    switch (mode)
+    {
+    case LEDOP_PARALLEL:
+        if ((retVal = rtl8367c_setAsicRegBit(RTL8367C_REG_LED_SYS_CONFIG, RTL8367C_LED_SELECT_OFFSET, 0)) != RT_ERR_OK)
+            return retVal;
+        /*Disable serial CLK mode*/
+        if ((retVal = rtl8367c_setAsicRegBit(RTL8367C_REG_SCAN0_LED_IO_EN1, RTL8367C_LED_SERI_CLK_EN_OFFSET, 0)) != RT_ERR_OK)
+            return retVal;
+        /*Disable serial DATA mode*/
+        if ((retVal = rtl8367c_setAsicRegBit(RTL8367C_REG_SCAN0_LED_IO_EN1, RTL8367C_LED_SERI_DATA_EN_OFFSET, 0)) != RT_ERR_OK)
+            return retVal;
+        break;
+    case LEDOP_SERIAL:
+        if ((retVal = rtl8367c_setAsicRegBit(RTL8367C_REG_LED_SYS_CONFIG, RTL8367C_LED_SELECT_OFFSET, 1)) != RT_ERR_OK)
+            return retVal;
+        /*Enable serial CLK mode*/
+        if ((retVal = rtl8367c_setAsicRegBit(RTL8367C_REG_SCAN0_LED_IO_EN1, RTL8367C_LED_SERI_CLK_EN_OFFSET, 1)) != RT_ERR_OK)
+            return retVal;
+        /*Enable serial DATA mode*/
+        if ((retVal = rtl8367c_setAsicRegBit(RTL8367C_REG_SCAN0_LED_IO_EN1, RTL8367C_LED_SERI_DATA_EN_OFFSET, 1)) != RT_ERR_OK)
+            return retVal;
+        break;
+    default:
+        return RT_ERR_INPUT;
+        break;
+    }
+
+    return RT_ERR_OK;
+}
+int32_t rtl8367::rtk_led_operation_set(rtk_led_operation_t mode)
+{
+    int32_t retVal;
+    uint32_t regData;
+
+    if (mode >= LED_OP_END)
+        return RT_ERR_INPUT;
+
+    switch (mode)
+    {
+    case LED_OP_PARALLEL:
+        regData = LEDOP_PARALLEL;
+        break;
+    case LED_OP_SERIAL:
+        regData = LEDOP_SERIAL;
+        break;
+    default:
+        return RT_ERR_CHIP_NOT_SUPPORTED;
+        break;
+    }
+
+    if ((retVal = rtl8367c_setAsicLedOperationMode(regData)) != RT_ERR_OK)
+        return retVal;
+
+    return RT_ERR_OK;
+}
+
+/* Function Name:
+ *      rtl8367c_setAsicLedBlinkRate
+ * Description:
+ *      Set led blinking rate at mode 0 to mode 3
+ * Input:
+ *      blinkRate   - Support 6 blink rates
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK           - Success
+ *      RT_ERR_SMI          - SMI access error
+ *      RT_ERR_OUT_OF_RANGE - input parameter out of range
+ * Note:
+ *      LED blink rate can be at 43ms, 84ms, 120ms, 170ms, 340ms and 670ms
+ */
+int32_t rtl8367::rtl8367c_setAsicLedBlinkRate(uint32_t blinkRate)
+{
+    if (blinkRate >= LEDBLINKRATE_END)
+        return RT_ERR_OUT_OF_RANGE;
+
+    return rtl8367c_setAsicRegBits(RTL8367C_REG_LED_MODE, RTL8367C_SEL_LEDRATE_MASK, blinkRate);
+}
+
+int32_t rtl8367::rtk_led_blinkRate_set(rtk_led_blink_rate_t blinkRate)
+{
+    int32_t retVal;
+
+    if (blinkRate >= LED_BLINKRATE_END)
+        return RT_ERR_FAILED;
+
+    if ((retVal = rtl8367c_setAsicLedBlinkRate(blinkRate)) != RT_ERR_OK)
+        return retVal;
+
+    return RT_ERR_OK;
+}
+
+/* Function Name:
+ *      rtl8367c_setAsicLedIndicateInfoConfig
+ * Description:
+ *      Set Leds indicated information mode
+ * Input:
+ *      ledno   - LED group number. There are 1 to 1 led mapping to each port in each led group
+ *      config  - Support 16 types configuration
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK           - Success
+ *      RT_ERR_SMI          - SMI access error
+ *      RT_ERR_OUT_OF_RANGE - input parameter out of range
+ * Note:
+ *      The API can set LED indicated information configuration for each LED group with 1 to 1 led mapping to each port.
+ *      Definition        LED Statuses            Description
+ *      0000        LED_Off                LED pin Tri-State.
+ *      0001        Dup/Col                Collision, Full duplex Indicator. Blinking every 43ms when collision happens. Low for full duplex, and high for half duplex mode.
+ *      0010        Link/Act               Link, Activity Indicator. Low for link established. Link/Act Blinks every 43ms when the corresponding port is transmitting or receiving.
+ *      0011        Spd1000                1000Mb/s Speed Indicator. Low for 1000Mb/s.
+ *      0100        Spd100                 100Mb/s Speed Indicator. Low for 100Mb/s.
+ *      0101        Spd10                  10Mb/s Speed Indicator. Low for 10Mb/s.
+ *      0110        Spd1000/Act            1000Mb/s Speed/Activity Indicator. Low for 1000Mb/s. Blinks every 43ms when the corresponding port is transmitting or receiving.
+ *      0111        Spd100/Act             100Mb/s Speed/Activity Indicator. Low for 100Mb/s. Blinks every 43ms when the corresponding port is transmitting or receiving.
+ *      1000        Spd10/Act              10Mb/s Speed/Activity Indicator. Low for 10Mb/s. Blinks every 43ms when the corresponding port is transmitting or receiving.
+ *      1001        Spd100 (10)/Act        10/100Mb/s Speed/Activity Indicator. Low for 10/100Mb/s. Blinks every 43ms when the corresponding port is transmitting or receiving.
+ *      1010        Fiber                  Fiber link Indicator. Low for Fiber.
+ *      1011        Fault                  Auto-negotiation     Fault Indicator. Low for Fault.
+ *      1100        Link/Rx                Link, Activity Indicator. Low for link established. Link/Rx Blinks every 43ms when the corresponding port is transmitting.
+ *      1101        Link/Tx                Link, Activity Indicator. Low for link established. Link/Tx Blinks every 43ms when the corresponding port is receiving.
+ *      1110        Master                 Link on Master Indicator. Low for link Master established.
+ *      1111        LED_Force              Force LED output, LED output value reference
+ */
+int32_t rtl8367::rtl8367c_setAsicLedIndicateInfoConfig(uint32_t ledno, uint32_t config)
+{
+    int32_t retVal;
+    const uint16_t bits[RTL8367C_LEDGROUPNO] = {RTL8367C_LED0_CFG_MASK, RTL8367C_LED1_CFG_MASK, RTL8367C_LED2_CFG_MASK};
+
+    if (ledno >= RTL8367C_LEDGROUPNO)
+        return RT_ERR_OUT_OF_RANGE;
+
+    if (config >= LEDCONF_END)
+        return RT_ERR_OUT_OF_RANGE;
+
+    retVal = rtl8367c_setAsicRegBit(RTL8367C_REG_LED_CONFIGURATION, RTL8367C_LED_CONFIG_SEL_OFFSET, 0);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    return rtl8367c_setAsicRegBits(RTL8367C_REG_LED_CONFIGURATION, bits[ledno], config);
+}
+int32_t rtl8367::rtk_led_groupConfig_set(rtk_led_group_t group, rtk_led_congig_t config)
+{
+    int32_t retVal;
+
+    if (LED_GROUP_END <= group)
+        return RT_ERR_FAILED;
+
+    if (LED_CONFIG_END <= config)
+        return RT_ERR_FAILED;
+
+    if ((retVal = rtl8367c_setAsicLedIndicateInfoConfig(group, config)) != RT_ERR_OK)
+        return retVal;
+
+    return RT_ERR_OK;
+}
+
+// ------------------------------- RMA -----------------------------------------
+
+/* Function Name:
+ *      rtl8367c_getAsicRma
+ * Description:
+ *      Get reserved multicast address for CPU trapping
+ * Input:
+ *      index     - reserved multicast LSB byte, 0x00~0x2F is available value
+ *      rmacfg     - type of RMA for trapping frame type setting
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK         - Success
+ *      RT_ERR_SMI      - SMI access error
+ *      RT_ERR_RMA_ADDR - Invalid RMA address index
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_getAsicRma(uint32_t index, rtl8367c_rma_t *pRmacfg)
+{
+    int32_t retVal;
+    uint32_t regData;
+
+    if (index > RTL8367C_RMAMAX)
+        return RT_ERR_RMA_ADDR;
+
+    if ((index >= 0x4 && index <= 0x7) || (index >= 0x9 && index <= 0x0C) || (0x0F == index))
+        index = 0x04;
+    else if ((index >= 0x13 && index <= 0x17) || (0x19 == index) || (index >= 0x1B && index <= 0x1f))
+        index = 0x13;
+    else if (index >= 0x22 && index <= 0x2F)
+        index = 0x22;
+
+    retVal = rtl8367c_getAsicReg(RTL8367C_REG_RMA_CTRL00 + index, &regData);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    pRmacfg->operation = ((regData >> 7) & 0x0003);
+    pRmacfg->discard_storm_filter = ((regData >> 6) & 0x0001);
+    pRmacfg->trap_priority = ((regData >> 3) & 0x0007);
+    pRmacfg->keep_format = ((regData >> 2) & 0x0001);
+    pRmacfg->vlan_leaky = ((regData >> 1) & 0x0001);
+    pRmacfg->portiso_leaky = (regData & 0x0001);
+
+    retVal = rtl8367c_getAsicRegBits(RTL8367C_REG_RMA_CTRL00, RTL8367C_TRAP_PRIORITY_MASK, &regData);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    pRmacfg->trap_priority = regData;
+
+    return RT_ERR_OK;
+}
+/* Function Name:
+ *      rtl8367c_setAsicRma
+ * Description:
+ *      Set reserved multicast address for CPU trapping
+ * Input:
+ *      index     - reserved multicast LSB byte, 0x00~0x2F is available value
+ *      pRmacfg     - type of RMA for trapping frame type setting
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK         - Success
+ *      RT_ERR_SMI      - SMI access error
+ *      RT_ERR_RMA_ADDR - Invalid RMA address index
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsicRma(uint32_t index, rtl8367c_rma_t *pRmacfg)
+{
+    uint32_t regData = 0;
+    int32_t retVal;
+
+    if (index > RTL8367C_RMAMAX)
+        return RT_ERR_RMA_ADDR;
+
+    regData |= (pRmacfg->portiso_leaky & 0x0001);
+    regData |= ((pRmacfg->vlan_leaky & 0x0001) << 1);
+    regData |= ((pRmacfg->keep_format & 0x0001) << 2);
+    regData |= ((pRmacfg->trap_priority & 0x0007) << 3);
+    regData |= ((pRmacfg->discard_storm_filter & 0x0001) << 6);
+    regData |= ((pRmacfg->operation & 0x0003) << 7);
+
+    if ((index >= 0x4 && index <= 0x7) || (index >= 0x9 && index <= 0x0C) || (0x0F == index))
+        index = 0x04;
+    else if ((index >= 0x13 && index <= 0x17) || (0x19 == index) || (index >= 0x1B && index <= 0x1f))
+        index = 0x13;
+    else if (index >= 0x22 && index <= 0x2F)
+        index = 0x22;
+
+    retVal = rtl8367c_setAsicRegBits(RTL8367C_REG_RMA_CTRL00, RTL8367C_TRAP_PRIORITY_MASK, pRmacfg->trap_priority);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    return rtl8367c_setAsicReg(RTL8367C_REG_RMA_CTRL00 + index, regData);
+}
+
+/* Function Name:
+ *      rtl8367c_getAsicRmaCdp
+ * Description:
+ *      Get CDP(Cisco Discovery Protocol) for CPU trapping
+ * Input:
+ *      None
+ * Output:
+ *      pRmacfg     - type of RMA for trapping frame type setting
+ * Return:
+ *      RT_ERR_OK         - Success
+ *      RT_ERR_SMI      - SMI access error
+ *      RT_ERR_RMA_ADDR - Invalid RMA address index
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_getAsicRmaCdp(rtl8367c_rma_t *pRmacfg)
+{
+    int32_t retVal;
+    uint32_t regData;
+
+    retVal = rtl8367c_getAsicReg(RTL8367C_REG_RMA_CTRL_CDP, &regData);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    pRmacfg->operation = ((regData >> 7) & 0x0003);
+    pRmacfg->discard_storm_filter = ((regData >> 6) & 0x0001);
+    pRmacfg->trap_priority = ((regData >> 3) & 0x0007);
+    pRmacfg->keep_format = ((regData >> 2) & 0x0001);
+    pRmacfg->vlan_leaky = ((regData >> 1) & 0x0001);
+    pRmacfg->portiso_leaky = (regData & 0x0001);
+
+    retVal = rtl8367c_getAsicRegBits(RTL8367C_REG_RMA_CTRL00, RTL8367C_TRAP_PRIORITY_MASK, &regData);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    pRmacfg->trap_priority = regData;
+
+    return RT_ERR_OK;
+}
+
+/* Function Name:
+ *      rtl8367c_setAsicRmaCdp
+ * Description:
+ *      Set CDP(Cisco Discovery Protocol) for CPU trapping
+ * Input:
+ *      pRmacfg     - type of RMA for trapping frame type setting
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK         - Success
+ *      RT_ERR_SMI      - SMI access error
+ *      RT_ERR_RMA_ADDR - Invalid RMA address index
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsicRmaCdp(rtl8367c_rma_t *pRmacfg)
+{
+    uint32_t regData = 0;
+    int32_t retVal;
+
+    if (pRmacfg->operation >= RMAOP_END)
+        return RT_ERR_RMA_ACTION;
+
+    if (pRmacfg->trap_priority > RTL8367C_PRIMAX)
+        return RT_ERR_QOS_INT_PRIORITY;
+
+    regData |= (pRmacfg->portiso_leaky & 0x0001);
+    regData |= ((pRmacfg->vlan_leaky & 0x0001) << 1);
+    regData |= ((pRmacfg->keep_format & 0x0001) << 2);
+    regData |= ((pRmacfg->trap_priority & 0x0007) << 3);
+    regData |= ((pRmacfg->discard_storm_filter & 0x0001) << 6);
+    regData |= ((pRmacfg->operation & 0x0003) << 7);
+
+    retVal = rtl8367c_setAsicRegBits(RTL8367C_REG_RMA_CTRL00, RTL8367C_TRAP_PRIORITY_MASK, pRmacfg->trap_priority);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    return rtl8367c_setAsicReg(RTL8367C_REG_RMA_CTRL_CDP, regData);
+}
+
+/* Function Name:
+ *      rtl8367c_setAsicRmaCsstp
+ * Description:
+ *      Set CSSTP(Cisco Shared Spanning Tree Protocol) for CPU trapping
+ * Input:
+ *      pRmacfg     - type of RMA for trapping frame type setting
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK         - Success
+ *      RT_ERR_SMI      - SMI access error
+ *      RT_ERR_RMA_ADDR - Invalid RMA address index
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsicRmaCsstp(rtl8367c_rma_t *pRmacfg)
+{
+    uint32_t regData = 0;
+    int32_t retVal;
+
+    if (pRmacfg->operation >= RMAOP_END)
+        return RT_ERR_RMA_ACTION;
+
+    if (pRmacfg->trap_priority > RTL8367C_PRIMAX)
+        return RT_ERR_QOS_INT_PRIORITY;
+
+    regData |= (pRmacfg->portiso_leaky & 0x0001);
+    regData |= ((pRmacfg->vlan_leaky & 0x0001) << 1);
+    regData |= ((pRmacfg->keep_format & 0x0001) << 2);
+    regData |= ((pRmacfg->trap_priority & 0x0007) << 3);
+    regData |= ((pRmacfg->discard_storm_filter & 0x0001) << 6);
+    regData |= ((pRmacfg->operation & 0x0003) << 7);
+
+    retVal = rtl8367c_setAsicRegBits(RTL8367C_REG_RMA_CTRL00, RTL8367C_TRAP_PRIORITY_MASK, pRmacfg->trap_priority);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    return rtl8367c_setAsicReg(RTL8367C_REG_RMA_CTRL_CSSTP, regData);
+}
+/* Function Name:
+ *      rtl8367c_getAsicRmaCsstp
+ * Description:
+ *      Get CSSTP(Cisco Shared Spanning Tree Protocol) for CPU trapping
+ * Input:
+ *      None
+ * Output:
+ *      pRmacfg     - type of RMA for trapping frame type setting
+ * Return:
+ *      RT_ERR_OK         - Success
+ *      RT_ERR_SMI      - SMI access error
+ *      RT_ERR_RMA_ADDR - Invalid RMA address index
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_getAsicRmaCsstp(rtl8367c_rma_t *pRmacfg)
+{
+    int32_t retVal;
+    uint32_t regData;
+
+    retVal = rtl8367c_getAsicReg(RTL8367C_REG_RMA_CTRL_CSSTP, &regData);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    pRmacfg->operation = ((regData >> 7) & 0x0003);
+    pRmacfg->discard_storm_filter = ((regData >> 6) & 0x0001);
+    pRmacfg->trap_priority = ((regData >> 3) & 0x0007);
+    pRmacfg->keep_format = ((regData >> 2) & 0x0001);
+    pRmacfg->vlan_leaky = ((regData >> 1) & 0x0001);
+    pRmacfg->portiso_leaky = (regData & 0x0001);
+
+    retVal = rtl8367c_getAsicRegBits(RTL8367C_REG_RMA_CTRL00, RTL8367C_TRAP_PRIORITY_MASK, &regData);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    pRmacfg->trap_priority = regData;
+
+    return RT_ERR_OK;
+}
+
+/* Function Name:
+ *      rtl8367c_setAsicRmaLldp
+ * Description:
+ *      Set LLDP for CPU trapping
+ * Input:
+ *      pRmacfg     - type of RMA for trapping frame type setting
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK         - Success
+ *      RT_ERR_SMI      - SMI access error
+ *      RT_ERR_RMA_ADDR - Invalid RMA address index
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsicRmaLldp(uint32_t enabled, rtl8367c_rma_t *pRmacfg)
+{
+    uint32_t regData = 0;
+    int32_t retVal;
+
+    if (enabled > 1)
+        return RT_ERR_ENABLE;
+
+    if (pRmacfg->operation >= RMAOP_END)
+        return RT_ERR_RMA_ACTION;
+
+    if (pRmacfg->trap_priority > RTL8367C_PRIMAX)
+        return RT_ERR_QOS_INT_PRIORITY;
+
+    retVal = rtl8367c_setAsicRegBit(RTL8367C_REG_RMA_LLDP_EN, RTL8367C_RMA_LLDP_EN_OFFSET, enabled);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    regData |= (pRmacfg->portiso_leaky & 0x0001);
+    regData |= ((pRmacfg->vlan_leaky & 0x0001) << 1);
+    regData |= ((pRmacfg->keep_format & 0x0001) << 2);
+    regData |= ((pRmacfg->trap_priority & 0x0007) << 3);
+    regData |= ((pRmacfg->discard_storm_filter & 0x0001) << 6);
+    regData |= ((pRmacfg->operation & 0x0003) << 7);
+
+    retVal = rtl8367c_setAsicRegBits(RTL8367C_REG_RMA_CTRL00, RTL8367C_TRAP_PRIORITY_MASK, pRmacfg->trap_priority);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    return rtl8367c_setAsicReg(RTL8367C_REG_RMA_CTRL_LLDP, regData);
+}
+/* Function Name:
+ *      rtl8367c_getAsicRmaLldp
+ * Description:
+ *      Get LLDP for CPU trapping
+ * Input:
+ *      None
+ * Output:
+ *      pRmacfg     - type of RMA for trapping frame type setting
+ * Return:
+ *      RT_ERR_OK         - Success
+ *      RT_ERR_SMI      - SMI access error
+ *      RT_ERR_RMA_ADDR - Invalid RMA address index
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_getAsicRmaLldp(uint32_t *pEnabled, rtl8367c_rma_t *pRmacfg)
+{
+    int32_t retVal;
+    uint32_t regData;
+
+    retVal = rtl8367c_getAsicRegBit(RTL8367C_REG_RMA_LLDP_EN, RTL8367C_RMA_LLDP_EN_OFFSET, pEnabled);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    retVal = rtl8367c_getAsicReg(RTL8367C_REG_RMA_CTRL_LLDP, &regData);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    pRmacfg->operation = ((regData >> 7) & 0x0003);
+    pRmacfg->discard_storm_filter = ((regData >> 6) & 0x0001);
+    pRmacfg->trap_priority = ((regData >> 3) & 0x0007);
+    pRmacfg->keep_format = ((regData >> 2) & 0x0001);
+    pRmacfg->vlan_leaky = ((regData >> 1) & 0x0001);
+    pRmacfg->portiso_leaky = (regData & 0x0001);
+
+    retVal = rtl8367c_getAsicRegBits(RTL8367C_REG_RMA_CTRL00, RTL8367C_TRAP_PRIORITY_MASK, &regData);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    pRmacfg->trap_priority = regData;
+
+    return RT_ERR_OK;
+}
+
+int32_t rtl8367::rtk_trap_rmaAction_set(rtk_trap_type_t type, rtk_trap_rma_action_t rma_action)
+{
+    int32_t retVal;
+    rtl8367c_rma_t rmacfg;
+    uint32_t tmp;
+
+    if (type >= TRAP_END)
+        return RT_ERR_INPUT;
+
+    if (rma_action >= RMA_ACTION_END)
+        return RT_ERR_RMA_ACTION;
+
+    if (type >= 0 && type <= TRAP_UNDEF_GARP_2F)
+    {
+        if ((retVal = rtl8367c_getAsicRma(type, &rmacfg)) != RT_ERR_OK)
+            return retVal;
+
+        rmacfg.operation = rma_action;
+
+        if ((retVal = rtl8367c_setAsicRma(type, &rmacfg)) != RT_ERR_OK)
+            return retVal;
+    }
+    else if (type == TRAP_CDP)
+    {
+        if ((retVal = rtl8367c_getAsicRmaCdp(&rmacfg)) != RT_ERR_OK)
+            return retVal;
+
+        rmacfg.operation = rma_action;
+
+        if ((retVal = rtl8367c_setAsicRmaCdp(&rmacfg)) != RT_ERR_OK)
+            return retVal;
+    }
+    else if (type == TRAP_CSSTP)
+    {
+        if ((retVal = rtl8367c_getAsicRmaCsstp(&rmacfg)) != RT_ERR_OK)
+            return retVal;
+
+        rmacfg.operation = rma_action;
+
+        if ((retVal = rtl8367c_setAsicRmaCsstp(&rmacfg)) != RT_ERR_OK)
+            return retVal;
+    }
+    else if (type == TRAP_LLDP)
+    {
+        if ((retVal = rtl8367c_getAsicRmaLldp(&tmp, &rmacfg)) != RT_ERR_OK)
+            return retVal;
+
+        rmacfg.operation = rma_action;
+
+        if ((retVal = rtl8367c_setAsicRmaLldp(tmp, &rmacfg)) != RT_ERR_OK)
+            return retVal;
+    }
+    else
+        return RT_ERR_INPUT;
+
+    return RT_ERR_OK;
+}
+
+int32_t rtl8367::rtk_trap_rmaAction_get(rtk_trap_type_t type, rtk_trap_rma_action_t *pRma_action)
+{
+    int32_t retVal;
+    rtl8367c_rma_t rmacfg;
+    uint32_t tmp;
+
+    if (type >= TRAP_END)
+        return RT_ERR_INPUT;
+
+    if (NULL == pRma_action)
+        return RT_ERR_NULL_POINTER;
+
+    if (type >= 0 && type <= TRAP_UNDEF_GARP_2F)
+    {
+        if ((retVal = rtl8367c_getAsicRma(type, &rmacfg)) != RT_ERR_OK)
+            return retVal;
+
+        *pRma_action = (rtk_trap_rma_action_t)rmacfg.operation;
+    }
+    else if (type == TRAP_CDP)
+    {
+        if ((retVal = rtl8367c_getAsicRmaCdp(&rmacfg)) != RT_ERR_OK)
+            return retVal;
+
+        *pRma_action = (rtk_trap_rma_action_t)rmacfg.operation;
+    }
+    else if (type == TRAP_CSSTP)
+    {
+        if ((retVal = rtl8367c_getAsicRmaCsstp(&rmacfg)) != RT_ERR_OK)
+            return retVal;
+
+        *pRma_action = (rtk_trap_rma_action_t)rmacfg.operation;
+    }
+    else if (type == TRAP_LLDP)
+    {
+        if ((retVal = rtl8367c_getAsicRmaLldp(&tmp, &rmacfg)) != RT_ERR_OK)
+            return retVal;
+
+        *pRma_action = (rtk_trap_rma_action_t)rmacfg.operation;
+    }
+    else
+        return RT_ERR_INPUT;
+
+    return RT_ERR_OK;
+}
+
+// ----------------------------- STORM FILTERING CONTROL -----------------------------
+
+/* Function Name:
+ *      rtl8367c_setAsicStormFilterUnknownUnicastEnable
+ * Description:
+ *      Set per-port unknown unicast storm filter enable/disable
+ * Input:
+ *      port    - Physical port number (0~7)
+ *      enabled - 1: enabled, 0: disabled
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK       - Success
+ *      RT_ERR_SMI      - SMI access error
+ *      RT_ERR_PORT_ID  - Invalid port number
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsicStormFilterUnknownUnicastEnable(uint32_t port, uint32_t enabled)
+{
+    if (port >= RTL8367C_PORTNO)
+        return RT_ERR_PORT_ID;
+
+    return rtl8367c_setAsicRegBit(RTL8367C_STORM_UNKNOWN_UCAST_REG, port, enabled);
+}
+
+/* Function Name:
+ *      rtl8367c_setAsicStormFilterUnknownMulticastEnable
+ * Description:
+ *      Set per-port unknown multicast storm filter enable/disable
+ * Input:
+ *      port    - Physical port number (0~7)
+ *      enabled - 1: enabled, 0: disabled
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK       - Success
+ *      RT_ERR_SMI      - SMI access error
+ *      RT_ERR_PORT_ID  - Invalid port number
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsicStormFilterUnknownMulticastEnable(uint32_t port, uint32_t enabled)
+{
+    if (port >= RTL8367C_PORTNO)
+        return RT_ERR_PORT_ID;
+
+    return rtl8367c_setAsicRegBit(RTL8367C_STORM_UNKNOWN_MCAST_REG, port, enabled);
+}
+
+/* Function Name:
+ *      rtl8367c_setAsicStormFilterMulticastEnable
+ * Description:
+ *      Set per-port multicast storm filter enable/disable
+ * Input:
+ *      port    - Physical port number (0~7)
+ *      enabled - 1: enabled, 0: disabled
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK       - Success
+ *      RT_ERR_SMI      - SMI access error
+ *      RT_ERR_PORT_ID  - Invalid port number
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsicStormFilterMulticastEnable(uint32_t port, uint32_t enabled)
+{
+    if (port >= RTL8367C_PORTNO)
+        return RT_ERR_PORT_ID;
+
+    return rtl8367c_setAsicRegBit(RTL8367C_STORM_MCAST_REG, port, enabled);
+}
+/* Function Name:
+ *      rtl8367c_setAsicStormFilterBroadcastEnable
+ * Description:
+ *      Set per-port broadcast storm filter enable/disable
+ * Input:
+ *      port    - Physical port number (0~7)
+ *      enabled - 1: enabled, 0: disabled
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK       - Success
+ *      RT_ERR_SMI      - SMI access error
+ *      RT_ERR_PORT_ID  - Invalid port number
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsicStormFilterBroadcastEnable(uint32_t port, uint32_t enabled)
+{
+    if (port >= RTL8367C_PORTNO)
+        return RT_ERR_PORT_ID;
+
+    return rtl8367c_setAsicRegBit(RTL8367C_STORM_BCAST_REG, port, enabled);
+}
+int32_t rtl8367::rtk_rate_stormControlPortEnable_set(rtk_port_t port, rtk_rate_storm_group_t stormType, rtk_enable_t enable)
+{
+    int32_t retVal;
+
+    /* Check Port Valid */
+    RTK_CHK_PORT_VALID(port);
+
+    if (stormType >= STORM_GROUP_END)
+        return RT_ERR_SFC_UNKNOWN_GROUP;
+
+    if (enable >= RTK_ENABLE_END)
+        return RT_ERR_ENABLE;
+
+    switch (stormType)
+    {
+    case STORM_GROUP_UNKNOWN_UNICAST:
+        if ((retVal = rtl8367c_setAsicStormFilterUnknownUnicastEnable(rtk_switch_port_L2P_get(port), enable)) != RT_ERR_OK)
+            return retVal;
+        break;
+    case STORM_GROUP_UNKNOWN_MULTICAST:
+        if ((retVal = rtl8367c_setAsicStormFilterUnknownMulticastEnable(rtk_switch_port_L2P_get(port), enable)) != RT_ERR_OK)
+            return retVal;
+        break;
+    case STORM_GROUP_MULTICAST:
+        if ((retVal = rtl8367c_setAsicStormFilterMulticastEnable(rtk_switch_port_L2P_get(port), enable)) != RT_ERR_OK)
+            return retVal;
+        break;
+    case STORM_GROUP_BROADCAST:
+        if ((retVal = rtl8367c_setAsicStormFilterBroadcastEnable(rtk_switch_port_L2P_get(port), enable)) != RT_ERR_OK)
+            return retVal;
+        break;
+    default:
+        break;
+    }
+
+    return RT_ERR_OK;
+}
+
+/* Function Name:
+ *      rtl8367c_getAsicStormFilterUnknownUnicastEnable
+ * Description:
+ *      get per-port unknown unicast storm filter enable/disable
+ * Input:
+ *      port    - Physical port number (0~7)
+ *      pEnabled - 1: enabled, 0: disabled
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK       - Success
+ *      RT_ERR_SMI      - SMI access error
+ *      RT_ERR_PORT_ID  - Invalid port number
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_getAsicStormFilterUnknownUnicastEnable(uint32_t port, uint32_t *pEnabled)
+{
+    if (port >= RTL8367C_PORTNO)
+        return RT_ERR_PORT_ID;
+
+    return rtl8367c_getAsicRegBit(RTL8367C_STORM_UNKNOWN_UCAST_REG, port, pEnabled);
+}
+/* Function Name:
+ *      rtl8367c_getAsicStormFilterUnknownMulticastEnable
+ * Description:
+ *      Get per-port unknown multicast storm filter enable/disable
+ * Input:
+ *      port    - Physical port number (0~7)
+ *      pEnabled - 1: enabled, 0: disabled
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK       - Success
+ *      RT_ERR_SMI      - SMI access error
+ *      RT_ERR_PORT_ID  - Invalid port number
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_getAsicStormFilterUnknownMulticastEnable(uint32_t port, uint32_t *pEnabled)
+{
+    if (port >= RTL8367C_PORTNO)
+        return RT_ERR_PORT_ID;
+
+    return rtl8367c_getAsicRegBit(RTL8367C_STORM_UNKNOWN_MCAST_REG, port, pEnabled);
+}
+/* Function Name:
+ *      rtl8367c_getAsicStormFilterMulticastEnable
+ * Description:
+ *      Get per-port multicast storm filter enable/disable
+ * Input:
+ *      port    - Physical port number (0~7)
+ *      pEnabled - 1: enabled, 0: disabled
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK       - Success
+ *      RT_ERR_SMI      - SMI access error
+ *      RT_ERR_PORT_ID  - Invalid port number
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_getAsicStormFilterMulticastEnable(uint32_t port, uint32_t *pEnabled)
+{
+    if (port >= RTL8367C_PORTNO)
+        return RT_ERR_PORT_ID;
+
+    return rtl8367c_getAsicRegBit(RTL8367C_STORM_MCAST_REG, port, pEnabled);
+}
+/* Function Name:
+ *      rtl8367c_getAsicStormFilterBroadcastEnable
+ * Description:
+ *      Get per-port broadcast storm filter enable/disable
+ * Input:
+ *      port    - Physical port number (0~7)
+ *      pEnabled - 1: enabled, 0: disabled
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK       - Success
+ *      RT_ERR_SMI      - SMI access error
+ *      RT_ERR_PORT_ID  - Invalid port number
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_getAsicStormFilterBroadcastEnable(uint32_t port, uint32_t *pEnabled)
+{
+    if (port >= RTL8367C_PORTNO)
+        return RT_ERR_PORT_ID;
+
+    return rtl8367c_getAsicRegBit(RTL8367C_STORM_BCAST_REG, port, pEnabled);
+}
+int32_t rtl8367::rtk_rate_stormControlPortEnable_get(rtk_port_t port, rtk_rate_storm_group_t stormType, rtk_enable_t *pEnable)
+{
+    int32_t retVal;
+
+    /* Check Port Valid */
+    RTK_CHK_PORT_VALID(port);
+
+    if (stormType >= STORM_GROUP_END)
+        return RT_ERR_SFC_UNKNOWN_GROUP;
+
+    if (NULL == pEnable)
+        return RT_ERR_ENABLE;
+
+    switch (stormType)
+    {
+    case STORM_GROUP_UNKNOWN_UNICAST:
+        if ((retVal = rtl8367c_getAsicStormFilterUnknownUnicastEnable(rtk_switch_port_L2P_get(port), (uint32_t *)pEnable)) != RT_ERR_OK)
+            return retVal;
+        break;
+    case STORM_GROUP_UNKNOWN_MULTICAST:
+        if ((retVal = rtl8367c_getAsicStormFilterUnknownMulticastEnable(rtk_switch_port_L2P_get(port), (uint32_t *)pEnable)) != RT_ERR_OK)
+            return retVal;
+        break;
+    case STORM_GROUP_MULTICAST:
+        if ((retVal = rtl8367c_getAsicStormFilterMulticastEnable(rtk_switch_port_L2P_get(port), (uint32_t *)pEnable)) != RT_ERR_OK)
+            return retVal;
+        break;
+    case STORM_GROUP_BROADCAST:
+        if ((retVal = rtl8367c_getAsicStormFilterBroadcastEnable(rtk_switch_port_L2P_get(port), (uint32_t *)pEnable)) != RT_ERR_OK)
+            return retVal;
+        break;
+    default:
+        break;
+    }
+
+    return RT_ERR_OK;
+}
+
+/* Function Name:
+ *      rtl8367c_setAsicStormFilterUnknownUnicastMeter
+ * Description:
+ *      Set per-port unknown unicast storm filter meter
+ * Input:
+ *      port    - Physical port number (0~7)
+ *      meter   - meter index (0~31)
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK               - Success
+ *      RT_ERR_SMI              - SMI access error
+ *      RT_ERR_PORT_ID          - Invalid port number
+ *      RT_ERR_FILTER_METER_ID  - Invalid meter index
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsicStormFilterUnknownUnicastMeter(uint32_t port, uint32_t meter)
+{
+    if (port >= RTL8367C_PORTNO)
+        return RT_ERR_PORT_ID;
+
+    if (meter > RTL8367C_METERMAX)
+        return RT_ERR_FILTER_METER_ID;
+
+    return rtl8367c_setAsicRegBits(RTL8367C_STORM_UNDA_METER_CTRL_REG(port), RTL8367C_STORM_UNDA_METER_CTRL_MASK(port), meter);
+}
+/* Function Name:
+ *      rtl8367c_setAsicStormFilterUnknownMulticastMeter
+ * Description:
+ *      Set per-port unknown multicast storm filter meter
+ * Input:
+ *      port    - Physical port number (0~7)
+ *      meter   - meter index (0~31)
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK               - Success
+ *      RT_ERR_SMI              - SMI access error
+ *      RT_ERR_PORT_ID          - Invalid port number
+ *      RT_ERR_FILTER_METER_ID  - Invalid meter index
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsicStormFilterUnknownMulticastMeter(uint32_t port, uint32_t meter)
+{
+    int32_t retVal;
+
+    if (port >= RTL8367C_PORTNO)
+        return RT_ERR_PORT_ID;
+
+    if (meter > RTL8367C_METERMAX)
+        return RT_ERR_FILTER_METER_ID;
+
+    if (port < 8)
+    {
+        retVal = rtl8367c_setAsicRegBits(RTL8367C_STORM_UNMC_METER_CTRL_REG(port), RTL8367C_STORM_UNMC_METER_CTRL_MASK(port), meter);
+        if (retVal != RT_ERR_OK)
+            return retVal;
+    }
+    else
+    {
+        retVal = rtl8367c_setAsicRegBits(RTL8367C_REG_STORM_UNMC_METER_CTRL4 + ((port - 8) >> 1), RTL8367C_STORM_UNMC_METER_CTRL_MASK(port), meter);
+        if (retVal != RT_ERR_OK)
+            return retVal;
+    }
+
+    return RT_ERR_OK;
+}
+/* Function Name:
+ *      rtl8367c_setAsicStormFilterMulticastMeter
+ * Description:
+ *      Set per-port multicast storm filter meter
+ * Input:
+ *      port    - Physical port number (0~7)
+ *      meter   - meter index (0~31)
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK               - Success
+ *      RT_ERR_SMI              - SMI access error
+ *      RT_ERR_PORT_ID          - Invalid port number
+ *      RT_ERR_FILTER_METER_ID  - Invalid meter index
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsicStormFilterMulticastMeter(uint32_t port, uint32_t meter)
+{
+    if (port >= RTL8367C_PORTNO)
+        return RT_ERR_PORT_ID;
+
+    if (meter > RTL8367C_METERMAX)
+        return RT_ERR_FILTER_METER_ID;
+
+    return rtl8367c_setAsicRegBits(RTL8367C_STORM_MCAST_METER_CTRL_REG(port), RTL8367C_STORM_MCAST_METER_CTRL_MASK(port), meter);
+}
+/* Function Name:
+ *      rtl8367c_setAsicStormFilterBroadcastMeter
+ * Description:
+ *      Set per-port broadcast storm filter meter
+ * Input:
+ *      port    - Physical port number (0~7)
+ *      meter   - meter index (0~31)
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK               - Success
+ *      RT_ERR_SMI              - SMI access error
+ *      RT_ERR_PORT_ID          - Invalid port number
+ *      RT_ERR_FILTER_METER_ID  - Invalid meter index
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsicStormFilterBroadcastMeter(uint32_t port, uint32_t meter)
+{
+    if (port >= RTL8367C_PORTNO)
+        return RT_ERR_PORT_ID;
+
+    if (meter > RTL8367C_METERMAX)
+        return RT_ERR_FILTER_METER_ID;
+
+    return rtl8367c_setAsicRegBits(RTL8367C_STORM_BCAST_METER_CTRL_REG(port), RTL8367C_STORM_BCAST_METER_CTRL_MASK(port), meter);
+}
+int32_t rtl8367::rtk_rate_stormControlMeterIdx_set(rtk_port_t port, rtk_rate_storm_group_t stormType, uint32_t index)
+{
+    int32_t retVal;
+
+    /* Check Port Valid */
+    RTK_CHK_PORT_VALID(port);
+
+    if (stormType >= STORM_GROUP_END)
+        return RT_ERR_SFC_UNKNOWN_GROUP;
+
+    if (index > halCtrl.max_meter_id)
+        return RT_ERR_FILTER_METER_ID;
+
+    switch (stormType)
+    {
+    case STORM_GROUP_UNKNOWN_UNICAST:
+        if ((retVal = rtl8367c_setAsicStormFilterUnknownUnicastMeter(rtk_switch_port_L2P_get(port), index)) != RT_ERR_OK)
+            return retVal;
+        break;
+    case STORM_GROUP_UNKNOWN_MULTICAST:
+        if ((retVal = rtl8367c_setAsicStormFilterUnknownMulticastMeter(rtk_switch_port_L2P_get(port), index)) != RT_ERR_OK)
+            return retVal;
+        break;
+    case STORM_GROUP_MULTICAST:
+        if ((retVal = rtl8367c_setAsicStormFilterMulticastMeter(rtk_switch_port_L2P_get(port), index)) != RT_ERR_OK)
+            return retVal;
+        break;
+    case STORM_GROUP_BROADCAST:
+        if ((retVal = rtl8367c_setAsicStormFilterBroadcastMeter(rtk_switch_port_L2P_get(port), index)) != RT_ERR_OK)
+            return retVal;
+        break;
+    default:
+        break;
+    }
+
+    return RT_ERR_OK;
+}
