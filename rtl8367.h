@@ -171,6 +171,8 @@ public:
 
     int32_t rtk_l2_learningCnt_get(rtk_port_t port, uint32_t *pMac_cnt);
 
+    int32_t rtk_filter_igrAcl_init();
+
 private:
     uint32_t vlan_mbrCfgVid[RTL8367C_CVIDXNO];
     vlan_mbrCfgType_t vlan_mbrCfgUsage[RTL8367C_CVIDXNO];
@@ -455,7 +457,105 @@ private:
     int32_t rtl8367c_setAsicLutLearnLimitNo(uint32_t port, uint32_t number);
     int32_t rtl8367c_getAsicLutLearnLimitNo(uint32_t port, uint32_t *pNumber);
     int32_t rtl8367c_getAsicLutLearnNo(uint32_t port, uint32_t *pNumber);
+    int32_t _rtk_filter_igrAcl_cfg_delAll();
+    int32_t rtl8367c_setAsicAclActCtrl(uint32_t index, uint32_t aclActCtrl);
+    int32_t rtl8367c_setAsicAclNot(uint32_t index, uint32_t nott);
+    int32_t rtl8367c_setAsicAclTemplate(uint32_t index, rtl8367c_acltemplate_t *pAclType);
+    int32_t rtl8367c_setAsicFieldSelector(uint32_t index, uint32_t format, uint32_t offset);
+    int32_t rtl8367c_setAsicAcl(uint32_t port, uint32_t enabled);
+    int32_t rtl8367c_setAsicAclUnmatchedPermit(uint32_t port, uint32_t enabled);
 
+    const uint8_t filter_templateField[RTL8367C_ACLTEMPLATENO][RTL8367C_ACLRULEFIELDNO] = {
+        {ACL_DMAC0, ACL_DMAC1, ACL_DMAC2, ACL_SMAC0, ACL_SMAC1, ACL_SMAC2, ACL_ETHERTYPE, ACL_FIELD_SELECT15},
+        {ACL_IP4SIP0, ACL_IP4SIP1, ACL_IP4DIP0, ACL_IP4DIP1, ACL_FIELD_SELECT13, ACL_FIELD_SELECT14, ACL_FIELD_SELECT02, ACL_FIELD_SELECT15},
+        {ACL_IP6SIP0WITHIPV4, ACL_IP6SIP1WITHIPV4, ACL_FIELD_SELECT03, ACL_FIELD_SELECT04, ACL_FIELD_SELECT05, ACL_FIELD_SELECT06, ACL_FIELD_SELECT07, ACL_FIELD_SELECT08},
+        {ACL_IP6DIP0WITHIPV4, ACL_IP6DIP1WITHIPV4, ACL_FIELD_SELECT09, ACL_FIELD_SELECT10, ACL_FIELD_SELECT11, ACL_FIELD_SELECT12, ACL_FIELD_SELECT13, ACL_FIELD_SELECT14},
+        {ACL_VIDRANGE, ACL_IPRANGE, ACL_PORTRANGE, ACL_CTAG, ACL_STAG, ACL_FIELD_SELECT13, ACL_FIELD_SELECT14, ACL_FIELD_SELECT15}};
+
+    const uint8_t filter_advanceCaretagField[RTL8367C_ACLTEMPLATENO][2] = {
+        {1, 7},
+        {1, 7},
+        {0, 0},
+        {0, 0},
+        {1, 7},
+    };
+
+    const uint8_t filter_fieldTemplateIndex[FILTER_FIELD_END][RTK_FILTER_FIELD_USED_MAX] = {
+        {0x00, 0x01, 0x02},
+        {0x03, 0x04, 0x05},
+        {0x06},
+        {0x43},
+        {0x44},
+        {0x10, 0x11},
+        {0x12, 0x13},
+        {0x24},
+        {0x25},
+        {0x35},
+        {0x35},
+        {0x20, 0x21, 0x22, 0x23},
+        {0x30, 0x31, 0x32, 0x33},
+        {0x26},
+        {0x27},
+        {0x14},
+        {0x15},
+        {0x16},
+        {0x14},
+        {0x15},
+        {0x14},
+        {0x14},
+        {0x14},
+
+        {0x40},
+        {0x41},
+        {0x42},
+
+        {0x14},
+        {0x15},
+        {0x16},
+        {0x22},
+        {0x23},
+        {0x24},
+        {0x25},
+        {0x26},
+        {0x27},
+        {0x32},
+        {0x33},
+        {0x34},
+        {0x35},
+        {0x36},
+        {0x37},
+        {0x47},
+
+        {0xFF} /* Pattern Match */
+    };
+
+    const uint8_t filter_fieldSize[FILTER_FIELD_END] = {
+        3, 3, 1, 1, 1,
+        2, 2, 1, 1, 1, 1, 4, 4, 1, 1,
+        1, 1, 1, 1, 1, 1, 1, 1,
+        1, 1, 1,
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        8};
+
+    const uint16_t field_selector[RTL8367C_FIELDSEL_FORMAT_NUMBER][2] =
+        {
+            {FIELDSEL_FORMAT_DEFAULT, 0},    /* Field Selector 0 */
+            {FIELDSEL_FORMAT_DEFAULT, 0},    /* Field Selector 1 */
+            {FIELDSEL_FORMAT_IPPAYLOAD, 12}, /* Field Selector 2 */
+            {FIELDSEL_FORMAT_IPV6, 10},      /* Field Selector 3 */
+            {FIELDSEL_FORMAT_IPV6, 8},       /* Field Selector 4 */
+            {FIELDSEL_FORMAT_IPV4, 0},       /* Field Selector 5 */
+            {FIELDSEL_FORMAT_IPV4, 8},       /* Field Selector 6 */
+            {FIELDSEL_FORMAT_IPV6, 0},       /* Field Selector 7 */
+            {FIELDSEL_FORMAT_IPV6, 6},       /* Field Selector 8 */
+            {FIELDSEL_FORMAT_IPV6, 26},      /* Field Selector 9 */
+            {FIELDSEL_FORMAT_IPV6, 24},      /* Field Selector 10 */
+            {FIELDSEL_FORMAT_DEFAULT, 0},    /* Field Selector 11 */
+            {FIELDSEL_FORMAT_IPV4, 6},       /* Field Selector 12 */
+            {FIELDSEL_FORMAT_IPPAYLOAD, 0},  /* Field Selector 13 */
+            {FIELDSEL_FORMAT_IPPAYLOAD, 2},  /* Field Selector 14 */
+            {FIELDSEL_FORMAT_DEFAULT, 0}     /* Field Selector 15 */
+    };
 #define FIBER2_AUTO_INIT_SIZE 2038
     uint8_t Fiber2_Auto[FIBER2_AUTO_INIT_SIZE] = {
         0x02,

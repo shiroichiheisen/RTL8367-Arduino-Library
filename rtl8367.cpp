@@ -11420,14 +11420,206 @@ int32_t rtl8367::rtk_l2_learningCnt_get(rtk_port_t port, uint32_t *pMac_cnt)
 
 // -------------------------------- ACL ---------------------------------------
 
-int32_t _rtk_filter_igrAcl_init(void)
+/* Function Name:
+ *      rtl8367c_setAsicAclActCtrl
+ * Description:
+ *      Set ACL rule matched Action Control Bits
+ * Input:
+ *      index       - ACL rule index (0-95) of 96 ACL rules
+ *      aclActCtrl  - 6 ACL Control Bits
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK               - Success
+ *      RT_ERR_SMI              - SMI access error
+ *      RT_ERR_OUT_OF_RANGE     - Invalid ACL rule index (0-95)
+ * Note:
+ *      ACL Action Control Bits Indicate which actions will be take when a rule matches
+ */
+int32_t rtl8367::rtl8367c_setAsicAclActCtrl(uint32_t index, uint32_t aclActCtrl)
+{
+    int32_t retVal;
+
+    if (index > RTL8367C_ACLRULEMAX)
+        return RT_ERR_OUT_OF_RANGE;
+
+    if (index >= 64)
+        retVal = rtl8367c_setAsicRegBits(RTL8367C_ACL_ACTION_CTRL2_REG(index), RTL8367C_ACL_OP_ACTION_MASK(index), aclActCtrl);
+    else
+        retVal = rtl8367c_setAsicRegBits(RTL8367C_ACL_ACTION_CTRL_REG(index), RTL8367C_ACL_OP_ACTION_MASK(index), aclActCtrl);
+
+    return retVal;
+}
+/* Function Name:
+ *      rtl8367c_setAsicAclNot
+ * Description:
+ *      Set rule comparison result inversion / no inversion
+ * Input:
+ *      index   - ACL rule index (0-95) of 96 ACL rules
+ *      not     - 1: inverse, 0: don't inverse
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK               - Success
+ *      RT_ERR_SMI              - SMI access error
+ *      RT_ERR_OUT_OF_RANGE     - Invalid ACL rule index (0-95)
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsicAclNot(uint32_t index, uint32_t nott)
+{
+    if (index > RTL8367C_ACLRULEMAX)
+        return RT_ERR_OUT_OF_RANGE;
+
+    if (index < 64)
+        return rtl8367c_setAsicRegBit(RTL8367C_ACL_ACTION_CTRL_REG(index), RTL8367C_ACL_OP_NOT_OFFSET(index), nott);
+    else
+        return rtl8367c_setAsicRegBit(RTL8367C_ACL_ACTION_CTRL2_REG(index), RTL8367C_ACL_OP_NOT_OFFSET(index), nott);
+}
+int32_t rtl8367::_rtk_filter_igrAcl_cfg_delAll()
+{
+    uint32_t i;
+    int32_t ret;
+
+    for (i = 0; i < RTL8367C_ACLRULENO; i++)
+    {
+        if ((ret = rtl8367c_setAsicAclActCtrl(i, FILTER_ENACT_INIT_MASK)) != RT_ERR_OK)
+            return ret;
+        if ((ret = rtl8367c_setAsicAclNot(i, DISABLED)) != RT_ERR_OK)
+            return ret;
+    }
+
+    return rtl8367c_setAsicRegBit(RTL8367C_REG_ACL_RESET_CFG, RTL8367C_ACL_RESET_CFG_OFFSET, 1);
+}
+
+/* Function Name:
+ *      rtl8367c_setAsicAclTemplate
+ * Description:
+ *      Set fields of a ACL Template
+ * Input:
+ *      index   - ACL template index(0~4)
+ *      pAclType - ACL type stucture for setting
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK               - Success
+ *      RT_ERR_SMI              - SMI access error
+ *      RT_ERR_OUT_OF_RANGE     - Invalid ACL template index(0~4)
+ * Note:
+ *      The API can set type field of the 5 ACL rule templates.
+ *      Each type has 8 fields. One field means what data in one field of a ACL rule means
+ *      8 fields of ACL rule 0~95 is descripted by one type in ACL group
+ */
+int32_t rtl8367::rtl8367c_setAsicAclTemplate(uint32_t index, rtl8367c_acltemplate_t *pAclType)
+{
+    int32_t retVal;
+    uint32_t i;
+    uint32_t regAddr, regData;
+
+    if (index >= RTL8367C_ACLTEMPLATENO)
+        return RT_ERR_OUT_OF_RANGE;
+
+    regAddr = RTL8367C_ACL_RULE_TEMPLATE_CTRL_REG(index);
+
+    for (i = 0; i < (RTL8367C_ACLRULEFIELDNO / 2); i++)
+    {
+        regData = pAclType->field[i * 2 + 1];
+        regData = regData << 8 | pAclType->field[i * 2];
+
+        retVal = rtl8367c_setAsicReg(regAddr + i, regData);
+
+        if (retVal != RT_ERR_OK)
+            return retVal;
+    }
+
+    return retVal;
+}
+
+/* Function Name:
+ *      rtl8367c_setAsicFieldSelector
+ * Description:
+ *      Set user defined field selectors in HSB
+ * Input:
+ *      index       - index of field selector 0-15
+ *      format      - Format of field selector
+ *      offset      - Retrieving data offset
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK           - Success
+ *      RT_ERR_SMI          - SMI access error
+ *      RT_ERR_OUT_OF_RANGE - input parameter out of range
+ * Note:
+ *      System support 16 user defined field selctors.
+ *      Each selector can be enabled or disable. User can defined retrieving 16-bits in many predefiend
+ *      standard l2/l3/l4 payload.
+ */
+int32_t rtl8367::rtl8367c_setAsicFieldSelector(uint32_t index, uint32_t format, uint32_t offset)
+{
+    uint32_t regData;
+
+    if (index > RTL8367C_FIELDSEL_FORMAT_NUMBER)
+        return RT_ERR_OUT_OF_RANGE;
+
+    if (format >= FIELDSEL_FORMAT_END)
+        return RT_ERR_OUT_OF_RANGE;
+
+    regData = (((format << RTL8367C_FIELD_SELECTOR_FORMAT_OFFSET) & RTL8367C_FIELD_SELECTOR_FORMAT_MASK) |
+               ((offset << RTL8367C_FIELD_SELECTOR_OFFSET_OFFSET) & RTL8367C_FIELD_SELECTOR_OFFSET_MASK));
+
+    return rtl8367c_setAsicReg(RTL8367C_FIELD_SELECTOR_REG(index), regData);
+}
+/* Function Name:
+ *      rtl8367c_setAsicAcl
+ * Description:
+ *      Set port acl function enable/disable
+ * Input:
+ *      port    - Physical port number (0~10)
+ *      enabled - 1: enabled, 0: disabled
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK       - Success
+ *      RT_ERR_SMI      - SMI access error
+ *      RT_ERR_PORT_ID  - Invalid port number
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsicAcl(uint32_t port, uint32_t enabled)
+{
+    if (port > RTL8367C_PORTIDMAX)
+        return RT_ERR_PORT_ID;
+
+    return rtl8367c_setAsicRegBit(RTL8367C_ACL_ENABLE_REG, port, enabled);
+}
+/* Function Name:
+ *      rtl8367c_setAsicAclUnmatchedPermit
+ * Description:
+ *      Set port acl function unmatched permit action
+ * Input:
+ *      port    - Physical port number (0~10)
+ *      enabled - 1: enabled, 0: disabled
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK       - Success
+ *      RT_ERR_SMI      - SMI access error
+ *      RT_ERR_PORT_ID  - Invalid port number
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsicAclUnmatchedPermit(uint32_t port, uint32_t enabled)
+{
+    if (port > RTL8367C_PORTIDMAX)
+        return RT_ERR_PORT_ID;
+
+    return rtl8367c_setAsicRegBit(RTL8367C_ACL_UNMATCH_PERMIT_REG, port, enabled);
+}
+int32_t rtl8367::rtk_filter_igrAcl_init()
 {
     rtl8367c_acltemplate_t aclTemp;
     uint32_t i, j;
     int32_t ret;
-
-    /* Check initialization state */
-    RTK_CHK_INIT_STATE();
 
     if ((ret = _rtk_filter_igrAcl_cfg_delAll()) != RT_ERR_OK)
         return ret;
@@ -11449,10 +11641,10 @@ int32_t _rtk_filter_igrAcl_init(void)
 
     RTK_SCAN_ALL_PHY_PORTMASK(i)
     {
-        if ((ret = rtl8367c_setAsicAcl(i, TRUE)) != RT_ERR_OK)
+        if ((ret = rtl8367c_setAsicAcl(i, 1)) != RT_ERR_OK)
             return ret;
 
-        if ((ret = rtl8367c_setAsicAclUnmatchedPermit(i, TRUE)) != RT_ERR_OK)
+        if ((ret = rtl8367c_setAsicAclUnmatchedPermit(i, 1)) != RT_ERR_OK)
             return ret;
     }
 

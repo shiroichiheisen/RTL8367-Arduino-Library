@@ -91,6 +91,7 @@ This library is based on the realteck original library, theres a programming gui
 - [x] rtk_l2_limitLearningCnt_set
 - [x] rtk_l2_limitLearningCnt_get
 - [x] rtk_l2_learningCnt_get
+- [x] rtk_filter_igrAcl_init
 
 # tested on:
 
