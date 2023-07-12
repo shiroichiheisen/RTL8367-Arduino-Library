@@ -4,19 +4,16 @@ To use this library, you will need to connect the sda and sck pins to the arduin
 
 # Important:
 
-You need to wait 1 second after the switch is powered on to use the library, because the switch needs time to start and read the eeprom, if your creating a board and dont have the eeprom data, you can use the .bin file on the eeprom folder to program the eeprom, the file is a dump of the eeprom of a rtl8367s switch, so you can use it to program your eeprom.
-
-I only have the rtl8367s eeprom file using the 24c32, i dont have other rtl8367 eeprom files, so if you have other rtl8367 eeprom files, please send them to this repository.
-
-This library is based on the realteck original library, theres a programming guide from realtech on this library.
+You need to wait 1 second after the switch is powered on to use the library, because the switch needs time to start and read the eeprom, if your creating a board and dont have the eeprom data, you can use the .bin file on the eeprom folder to program the eeprom, the file is a dump of the eeprom of a rtl8367 switch, so you can use it to program your eeprom.
+This library is based on the realteck original library, theres a programming guide from realteck on this library.
 
 # Functions Added:
 
-- [x] Read the port status - getPortStatus - tested
-- [x] Probe the ic to see if its connected - probeIc - tested
-- [x] Init Vlan - rtk_vlan_init - tested
-- [x] Set Vlan - rtk_vlan_set
-- [x] Get Vlan - rtk_vlan_get
+- [x] rtk_switch_probe - tested
+- [x] rtk_port_phyStatus_get - tested
+- [x] rtk_vlan_init - tested
+- [x] rtk_vlan_set
+- [x] rtk_vlan_get
 - [x] rtk_vlan_portPvid_set
 - [x] rtk_vlan_portPvid_get
 - [x] rtk_vlan_portIgrFilterEnable_set
@@ -67,6 +64,11 @@ This library is based on the realteck original library, theres a programming gui
 - [x] rtk_int_status_get
 - [x] rtk_int_status_set
 - [x] rtk_int_advanceInfo_get
+- [x] rtk_stat_port_get
+- [x] rtk_stat_port_reset
+- [x] rtk_port_phyEnableAll_set
+- [x] rtk_port_phyAutoNegoAbility_set
+- [x] rtk_port_phyAutoNegoAbility_get
 
 # tested on:
 

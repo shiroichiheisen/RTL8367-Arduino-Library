@@ -438,6 +438,187 @@ typedef enum RTL8367C_INTR_INDICATOR_E
     INTRST_END,
 } RTL8367C_INTR_INDICATOR;
 
+/* port statistic counter index */
+typedef enum rtk_stat_port_type_e
+{
+    STAT_IfInOctets = 0,
+    STAT_Dot3StatsFCSErrors,
+    STAT_Dot3StatsSymbolErrors,
+    STAT_Dot3InPauseFrames,
+    STAT_Dot3ControlInUnknownOpcodes,
+    STAT_EtherStatsFragments,
+    STAT_EtherStatsJabbers,
+    STAT_IfInUcastPkts,
+    STAT_EtherStatsDropEvents,
+    STAT_EtherStatsOctets,
+    STAT_EtherStatsUnderSizePkts,
+    STAT_EtherOversizeStats,
+    STAT_EtherStatsPkts64Octets,
+    STAT_EtherStatsPkts65to127Octets,
+    STAT_EtherStatsPkts128to255Octets,
+    STAT_EtherStatsPkts256to511Octets,
+    STAT_EtherStatsPkts512to1023Octets,
+    STAT_EtherStatsPkts1024to1518Octets,
+    STAT_EtherStatsMulticastPkts,
+    STAT_EtherStatsBroadcastPkts,
+    STAT_IfOutOctets,
+    STAT_Dot3StatsSingleCollisionFrames,
+    STAT_Dot3StatsMultipleCollisionFrames,
+    STAT_Dot3StatsDeferredTransmissions,
+    STAT_Dot3StatsLateCollisions,
+    STAT_EtherStatsCollisions,
+    STAT_Dot3StatsExcessiveCollisions,
+    STAT_Dot3OutPauseFrames,
+    STAT_Dot1dBasePortDelayExceededDiscards,
+    STAT_Dot1dTpPortInDiscards,
+    STAT_IfOutUcastPkts,
+    STAT_IfOutMulticastPkts,
+    STAT_IfOutBroadcastPkts,
+    STAT_OutOampduPkts,
+    STAT_InOampduPkts,
+    STAT_PktgenPkts,
+    STAT_InMldChecksumError,
+    STAT_InIgmpChecksumError,
+    STAT_InMldSpecificQuery,
+    STAT_InMldGeneralQuery,
+    STAT_InIgmpSpecificQuery,
+    STAT_InIgmpGeneralQuery,
+    STAT_InMldLeaves,
+    STAT_InIgmpInterfaceLeaves,
+    STAT_InIgmpJoinsSuccess,
+    STAT_InIgmpJoinsFail,
+    STAT_InMldJoinsSuccess,
+    STAT_InMldJoinsFail,
+    STAT_InReportSuppressionDrop,
+    STAT_InLeaveSuppressionDrop,
+    STAT_OutIgmpReports,
+    STAT_OutIgmpLeaves,
+    STAT_OutIgmpGeneralQuery,
+    STAT_OutIgmpSpecificQuery,
+    STAT_OutMldReports,
+    STAT_OutMldLeaves,
+    STAT_OutMldGeneralQuery,
+    STAT_OutMldSpecificQuery,
+    STAT_InKnownMulticastPkts,
+    STAT_IfInMulticastPkts,
+    STAT_IfInBroadcastPkts,
+    STAT_IfOutDiscards,
+    STAT_PORT_CNTR_END
+} rtk_stat_port_type_t;
+
+typedef enum RTL8367C_MIBCOUNTER_E
+{
+
+    /* RX */
+    ifInOctets = 0,
+
+    dot3StatsFCSErrors,
+    dot3StatsSymbolErrors,
+    dot3InPauseFrames,
+    dot3ControlInUnknownOpcodes,
+
+    etherStatsFragments,
+    etherStatsJabbers,
+    ifInUcastPkts,
+    etherStatsDropEvents,
+
+    ifInMulticastPkts,
+    ifInBroadcastPkts,
+    inMldChecksumError,
+    inIgmpChecksumError,
+    inMldSpecificQuery,
+    inMldGeneralQuery,
+    inIgmpSpecificQuery,
+    inIgmpGeneralQuery,
+    inMldLeaves,
+    inIgmpLeaves,
+
+    /* TX/RX */
+    etherStatsOctets,
+
+    etherStatsUnderSizePkts,
+    etherOversizeStats,
+    etherStatsPkts64Octets,
+    etherStatsPkts65to127Octets,
+    etherStatsPkts128to255Octets,
+    etherStatsPkts256to511Octets,
+    etherStatsPkts512to1023Octets,
+    etherStatsPkts1024to1518Octets,
+
+    /* TX */
+    ifOutOctets,
+
+    dot3StatsSingleCollisionFrames,
+    dot3StatMultipleCollisionFrames,
+    dot3sDeferredTransmissions,
+    dot3StatsLateCollisions,
+    etherStatsCollisions,
+    dot3StatsExcessiveCollisions,
+    dot3OutPauseFrames,
+    ifOutDiscards,
+
+    /* ALE */
+    dot1dTpPortInDiscards,
+    ifOutUcastPkts,
+    ifOutMulticastPkts,
+    ifOutBroadcastPkts,
+    outOampduPkts,
+    inOampduPkts,
+
+    inIgmpJoinsSuccess,
+    inIgmpJoinsFail,
+    inMldJoinsSuccess,
+    inMldJoinsFail,
+    inReportSuppressionDrop,
+    inLeaveSuppressionDrop,
+    outIgmpReports,
+    outIgmpLeaves,
+    outIgmpGeneralQuery,
+    outIgmpSpecificQuery,
+    outMldReports,
+    outMldLeaves,
+    outMldGeneralQuery,
+    outMldSpecificQuery,
+    inKnownMulticastPkts,
+
+    /*Device only */
+    dot1dTpLearnedEntryDiscards,
+    RTL8367C_MIBS_NUMBER,
+
+} RTL8367C_MIBCOUNTER;
+#define PHY_CONTROL_REG 0
+
+typedef struct rtk_port_phy_ability_s
+{
+    uint32_t AutoNegotiation; /*PHY register 0.12 setting for auto-negotiation process*/
+    uint32_t Half_10;         /*PHY register 4.5 setting for 10BASE-TX half duplex capable*/
+    uint32_t Full_10;         /*PHY register 4.6 setting for 10BASE-TX full duplex capable*/
+    uint32_t Half_100;        /*PHY register 4.7 setting for 100BASE-TX half duplex capable*/
+    uint32_t Full_100;        /*PHY register 4.8 setting for 100BASE-TX full duplex capable*/
+    uint32_t Full_1000;       /*PHY register 9.9 setting for 1000BASE-T full duplex capable*/
+    uint32_t FC;              /*PHY register 4.10 setting for flow control capability*/
+    uint32_t AsyFC;           /*PHY register 4.11 setting for  asymmetric flow control capability*/
+} rtk_port_phy_ability_t;
+typedef enum rtk_port_phy_reg_e
+{
+    PHY_REG_CONTROL = 0,
+    PHY_REG_STATUS,
+    PHY_REG_IDENTIFIER_1,
+    PHY_REG_IDENTIFIER_2,
+    PHY_REG_AN_ADVERTISEMENT,
+    PHY_REG_AN_LINKPARTNER,
+    PHY_REG_1000_BASET_CONTROL = 9,
+    PHY_REG_1000_BASET_STATUS,
+    PHY_REG_END = 32
+} rtk_port_phy_reg_t;
+
+typedef enum rtk_port_media_e
+{
+    PORT_MEDIA_COPPER = 0,
+    PORT_MEDIA_FIBER,
+    PORT_MEDIA_END
+} rtk_port_media_t;
+
 class rtl8367
 {
 public:
@@ -548,6 +729,16 @@ public:
     int32_t rtk_int_status_set(rtk_int_status_t *pStatusMask);
 
     int32_t rtk_int_advanceInfo_get(rtk_int_advType_t adv_type, rtk_int_info_t *pInfo);
+
+    int32_t rtk_stat_port_get(rtk_port_t port, rtk_stat_port_type_t cntr_idx, uint64_t *pCntr);
+
+    int32_t rtk_stat_port_reset(rtk_port_t port);
+
+    int32_t rtk_port_phyEnableAll_set(rtk_enable_t enable);
+
+    int32_t rtk_port_phyAutoNegoAbility_set(rtk_port_t port, rtk_port_phy_ability_t *pAbility);
+
+    int32_t rtk_port_phyAutoNegoAbility_get(rtk_port_t port, rtk_port_phy_ability_t *pAbility);
     /* Function Name:
      *      rtk_switch_maxMeterId_get
      * Description:
@@ -959,6 +1150,10 @@ private:
 #define RTL8367C_SVLAN_SP2C_LEN 2
 #define RTK_FID_MAX 0xF
 #define RTL8367C_DSCPMAX 63
+#define RTL8367C_MIB_PORT_OFFSET (0x7C)
+#define RTL8367C_MIB_LEARNENTRYDISCARD_OFFSET (0x420)
+#define PHY_1000_BASET_CONTROL_REG 9
+#define PHY_AN_ADVERTISEMENT_REG 4
 
     typedef enum rtk_svlan_lookupType_e
     {
@@ -971,6 +1166,19 @@ private:
     rtk_svlan_lookupType_t svlan_lookupType;
     uint8_t svlan_mbrCfgUsage[RTL8367C_SVIDXNO];
     uint16_t svlan_mbrCfgVid[RTL8367C_SVIDXNO];
+
+#define RTK_SCAN_ALL_LOG_PORT(__port__)                            \
+    for (__port__ = 0; __port__ < RTK_SWITCH_PORT_NUM; __port__++) \
+        if (rtk_switch_logicalPortCheck(__port__) == RT_ERR_OK)
+
+#define RTK_CHK_PORT_IS_COMBO(__port__)                    \
+    do                                                     \
+    {                                                      \
+        if (rtk_switch_isComboPort(__port__) != RT_ERR_OK) \
+        {                                                  \
+            return RT_ERR_PORT_ID;                         \
+        }                                                  \
+    } while (0)
 
     void _smi_start();
     void _smi_writeBit(uint16_t, uint32_t);
@@ -1050,6 +1258,18 @@ private:
     int32_t _rtk_int_Advidx_get(rtk_int_advType_t adv_type, uint32_t *pAsic_idx);
     int32_t rtl8367c_getAsicInterruptRelatedStatus(uint32_t type, uint32_t *pStatus);
     int32_t rtl8367c_setAsicInterruptRelatedStatus(uint32_t type, uint32_t status);
+    int32_t _get_asic_mib_idx(rtk_stat_port_type_t cnt_idx, RTL8367C_MIBCOUNTER *pMib_idx);
+    int32_t rtl8367c_getAsicMIBsCounter(uint32_t port, RTL8367C_MIBCOUNTER mibIdx, uint64_t *pCounter);
+    int32_t rtl8367c_setAsicMIBsCounterReset(uint32_t greset, uint32_t qmreset, uint32_t portmask);
+    int32_t rtl8367c_setAsicPortEnableAll(uint32_t enable);
+    int32_t _rtk_port_phyReg_get(rtk_port_t port, rtk_port_phy_reg_t reg, uint32_t *pData);
+    int32_t _rtk_port_phyReg_set(rtk_port_t port, rtk_port_phy_reg_t reg, uint32_t regData);
+    int32_t rtl8367c_setAsicPHYReg(uint32_t phyNo, uint32_t phyAddr, uint32_t phyData);
+    int32_t rtl8367c_setAsicPHYOCPReg(uint32_t phyNo, uint32_t ocpAddr, uint32_t ocpData);
+    int32_t rtk_switch_isComboPort(rtk_port_t logicalPort);
+    int32_t _rtk_port_phyComboPortMedia_get(rtk_port_t port, rtk_port_media_t *pMedia);
+    int32_t _rtk_port_FiberModeAbility_set(rtk_port_t port, rtk_port_phy_ability_t *pAbility);
+    int32_t _rtk_port_FiberModeAbility_get(rtk_port_t port, rtk_port_phy_ability_t *pAbility);
     /* Function Name:
      *      rtk_switch_port_P2L_get
      * Description:

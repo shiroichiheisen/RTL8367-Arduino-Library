@@ -5478,3 +5478,1060 @@ int32_t rtl8367::rtk_int_advanceInfo_get(rtk_int_advType_t adv_type, rtk_int_inf
 }
 
 // ----------------------- MIB -----------------------
+
+#define MIB_NOT_SUPPORT (0xFFFF)
+int32_t rtl8367::_get_asic_mib_idx(rtk_stat_port_type_t cnt_idx, RTL8367C_MIBCOUNTER *pMib_idx)
+{
+    RTL8367C_MIBCOUNTER mib_asic_idx[STAT_PORT_CNTR_END] =
+        {
+            ifInOctets,                           /* STAT_IfInOctets */
+            dot3StatsFCSErrors,                   /* STAT_Dot3StatsFCSErrors */
+            dot3StatsSymbolErrors,                /* STAT_Dot3StatsSymbolErrors */
+            dot3InPauseFrames,                    /* STAT_Dot3InPauseFrames */
+            dot3ControlInUnknownOpcodes,          /* STAT_Dot3ControlInUnknownOpcodes */
+            etherStatsFragments,                  /* STAT_EtherStatsFragments */
+            etherStatsJabbers,                    /* STAT_EtherStatsJabbers */
+            ifInUcastPkts,                        /* STAT_IfInUcastPkts */
+            etherStatsDropEvents,                 /* STAT_EtherStatsDropEvents */
+            etherStatsOctets,                     /* STAT_EtherStatsOctets */
+            etherStatsUnderSizePkts,              /* STAT_EtherStatsUnderSizePkts */
+            etherOversizeStats,                   /* STAT_EtherOversizeStats */
+            etherStatsPkts64Octets,               /* STAT_EtherStatsPkts64Octets */
+            etherStatsPkts65to127Octets,          /* STAT_EtherStatsPkts65to127Octets */
+            etherStatsPkts128to255Octets,         /* STAT_EtherStatsPkts128to255Octets */
+            etherStatsPkts256to511Octets,         /* STAT_EtherStatsPkts256to511Octets */
+            etherStatsPkts512to1023Octets,        /* STAT_EtherStatsPkts512to1023Octets */
+            etherStatsPkts1024to1518Octets,       /* STAT_EtherStatsPkts1024to1518Octets */
+            ifInMulticastPkts,                    /* STAT_EtherStatsMulticastPkts */
+            ifInBroadcastPkts,                    /* STAT_EtherStatsBroadcastPkts */
+            ifOutOctets,                          /* STAT_IfOutOctets */
+            dot3StatsSingleCollisionFrames,       /* STAT_Dot3StatsSingleCollisionFrames */
+            dot3StatMultipleCollisionFrames,      /* STAT_Dot3StatsMultipleCollisionFrames */
+            dot3sDeferredTransmissions,           /* STAT_Dot3StatsDeferredTransmissions */
+            dot3StatsLateCollisions,              /* STAT_Dot3StatsLateCollisions */
+            etherStatsCollisions,                 /* STAT_EtherStatsCollisions */
+            dot3StatsExcessiveCollisions,         /* STAT_Dot3StatsExcessiveCollisions */
+            dot3OutPauseFrames,                   /* STAT_Dot3OutPauseFrames */
+            (RTL8367C_MIBCOUNTER)MIB_NOT_SUPPORT, /* STAT_Dot1dBasePortDelayExceededDiscards */
+            dot1dTpPortInDiscards,                /* STAT_Dot1dTpPortInDiscards */
+            ifOutUcastPkts,                       /* STAT_IfOutUcastPkts */
+            ifOutMulticastPkts,                   /* STAT_IfOutMulticastPkts */
+            ifOutBroadcastPkts,                   /* STAT_IfOutBroadcastPkts */
+            outOampduPkts,                        /* STAT_OutOampduPkts */
+            inOampduPkts,                         /* STAT_InOampduPkts */
+            (RTL8367C_MIBCOUNTER)MIB_NOT_SUPPORT, /* STAT_PktgenPkts */
+            inMldChecksumError,                   /* STAT_InMldChecksumError */
+            inIgmpChecksumError,                  /* STAT_InIgmpChecksumError */
+            inMldSpecificQuery,                   /* STAT_InMldSpecificQuery */
+            inMldGeneralQuery,                    /* STAT_InMldGeneralQuery */
+            inIgmpSpecificQuery,                  /* STAT_InIgmpSpecificQuery */
+            inIgmpGeneralQuery,                   /* STAT_InIgmpGeneralQuery */
+            inMldLeaves,                          /* STAT_InMldLeaves */
+            inIgmpLeaves,                         /* STAT_InIgmpInterfaceLeaves */
+            inIgmpJoinsSuccess,                   /* STAT_InIgmpJoinsSuccess */
+            inIgmpJoinsFail,                      /* STAT_InIgmpJoinsFail */
+            inMldJoinsSuccess,                    /* STAT_InMldJoinsSuccess */
+            inMldJoinsFail,                       /* STAT_InMldJoinsFail */
+            inReportSuppressionDrop,              /* STAT_InReportSuppressionDrop */
+            inLeaveSuppressionDrop,               /* STAT_InLeaveSuppressionDrop */
+            outIgmpReports,                       /* STAT_OutIgmpReports */
+            outIgmpLeaves,                        /* STAT_OutIgmpLeaves */
+            outIgmpGeneralQuery,                  /* STAT_OutIgmpGeneralQuery */
+            outIgmpSpecificQuery,                 /* STAT_OutIgmpSpecificQuery */
+            outMldReports,                        /* STAT_OutMldReports */
+            outMldLeaves,                         /* STAT_OutMldLeaves */
+            outMldGeneralQuery,                   /* STAT_OutMldGeneralQuery */
+            outMldSpecificQuery,                  /* STAT_OutMldSpecificQuery */
+            inKnownMulticastPkts,                 /* STAT_InKnownMulticastPkts */
+            ifInMulticastPkts,                    /* STAT_IfInMulticastPkts */
+            ifInBroadcastPkts,                    /* STAT_IfInBroadcastPkts */
+            ifOutDiscards                         /* STAT_IfOutDiscards */
+        };
+
+    if (cnt_idx >= STAT_PORT_CNTR_END)
+        return RT_ERR_STAT_INVALID_PORT_CNTR;
+
+    if (mib_asic_idx[cnt_idx] == MIB_NOT_SUPPORT)
+        return RT_ERR_CHIP_NOT_SUPPORTED;
+
+    *pMib_idx = mib_asic_idx[cnt_idx];
+    return RT_ERR_OK;
+}
+/* Function Name:
+ *      rtl8367c_getAsicMIBsCounter
+ * Description:
+ *      Get MIBs counter
+ * Input:
+ *      port        - Physical port number (0~7)
+ *      mibIdx      - MIB counter index
+ *      pCounter    - MIB retrived counter
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK               - Success
+ *      RT_ERR_SMI              - SMI access error
+ *      RT_ERR_PORT_ID          - Invalid port number
+ *      RT_ERR_BUSYWAIT_TIMEOUT - MIB is busy at retrieving
+ *      RT_ERR_STAT_CNTR_FAIL   - MIB is resetting
+ * Note:
+ *      Before MIBs counter retrieving, writting accessing address to ASIC at first and check the MIB
+ *      control register status. If busy bit of MIB control is set, that means MIB counter have been
+ *      waiting for preparing, then software must wait atfer this busy flag reset by ASIC. This driver
+ *      did not recycle reading user desired counter. Software must use driver again to get MIB counter
+ *      if return value is not RT_ERR_OK.
+ */
+int32_t rtl8367::rtl8367c_getAsicMIBsCounter(uint32_t port, RTL8367C_MIBCOUNTER mibIdx, uint64_t *pCounter)
+{
+    int32_t retVal;
+    uint32_t regAddr;
+    uint32_t regData;
+    uint32_t mibAddr;
+    uint32_t mibOff = 0;
+
+    /* address offset to MIBs counter */
+    const uint16_t mibLength[RTL8367C_MIBS_NUMBER] = {
+        4, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+        4, 2, 2, 2, 2, 2, 2, 2, 2,
+        4, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+        2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2};
+
+    uint16_t i;
+    uint64_t mibCounter;
+
+    if (port > RTL8367C_PORTIDMAX)
+        return RT_ERR_PORT_ID;
+
+    if (mibIdx >= RTL8367C_MIBS_NUMBER)
+        return RT_ERR_STAT_INVALID_CNTR;
+
+    if (dot1dTpLearnedEntryDiscards == mibIdx)
+    {
+        mibAddr = RTL8367C_MIB_LEARNENTRYDISCARD_OFFSET;
+    }
+    else
+    {
+        i = 0;
+        mibOff = RTL8367C_MIB_PORT_OFFSET * port;
+
+        if (port > 7)
+            mibOff = mibOff + 68;
+
+        while (i < mibIdx)
+        {
+            mibOff += mibLength[i];
+            i++;
+        }
+
+        mibAddr = mibOff;
+    }
+
+    /* Read MIB addr before writing */
+    retVal = rtl8367c_getAsicReg(RTL8367C_REG_MIB_ADDRESS, &regData);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    if (regData == (mibAddr >> 2))
+    {
+        /* Write MIB addr to an alternate value */
+        retVal = rtl8367c_setAsicReg(RTL8367C_REG_MIB_ADDRESS, (mibAddr >> 2) + 1);
+        if (retVal != RT_ERR_OK)
+            return retVal;
+
+        while (1)
+        {
+            retVal = rtl8367c_getAsicReg(RTL8367C_REG_MIB_ADDRESS, &regData);
+            if (retVal != RT_ERR_OK)
+                return retVal;
+
+            if (regData == ((mibAddr >> 2) + 1))
+            {
+                break;
+            }
+
+            retVal = rtl8367c_setAsicReg(RTL8367C_REG_MIB_ADDRESS, (mibAddr >> 2) + 1);
+            if (retVal != RT_ERR_OK)
+                return retVal;
+        }
+
+        /* polling busy flag */
+        i = 100;
+        while (i > 0)
+        {
+            /*read MIB control register*/
+            retVal = rtl8367c_getAsicReg(RTL8367C_MIB_CTRL_REG, &regData);
+            if (retVal != RT_ERR_OK)
+                return retVal;
+
+            if ((regData & RTL8367C_MIB_CTRL0_BUSY_FLAG_MASK) == 0)
+            {
+                break;
+            }
+
+            i--;
+        }
+
+        if (regData & RTL8367C_MIB_CTRL0_BUSY_FLAG_MASK)
+            return RT_ERR_BUSYWAIT_TIMEOUT;
+
+        if (regData & RTL8367C_RESET_FLAG_MASK)
+            return RT_ERR_STAT_CNTR_FAIL;
+    }
+
+    /*writing access counter address first*/
+    /*This address is SRAM address, and SRAM address = MIB register address >> 2*/
+    /*then ASIC will prepare 64bits counter wait for being retrived*/
+    /*Write Mib related address to access control register*/
+    retVal = rtl8367c_setAsicReg(RTL8367C_REG_MIB_ADDRESS, (mibAddr >> 2));
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    /* polling MIB Addr register */
+    while (1)
+    {
+        retVal = rtl8367c_getAsicReg(RTL8367C_REG_MIB_ADDRESS, &regData);
+        if (retVal != RT_ERR_OK)
+            return retVal;
+
+        if (regData == (mibAddr >> 2))
+        {
+            break;
+        }
+
+        retVal = rtl8367c_setAsicReg(RTL8367C_REG_MIB_ADDRESS, (mibAddr >> 2));
+        if (retVal != RT_ERR_OK)
+            return retVal;
+    }
+
+    /* polling busy flag */
+    i = 100;
+    while (i > 0)
+    {
+        /*read MIB control register*/
+        retVal = rtl8367c_getAsicReg(RTL8367C_MIB_CTRL_REG, &regData);
+        if (retVal != RT_ERR_OK)
+            return retVal;
+
+        if ((regData & RTL8367C_MIB_CTRL0_BUSY_FLAG_MASK) == 0)
+        {
+            break;
+        }
+
+        i--;
+    }
+
+    if (regData & RTL8367C_MIB_CTRL0_BUSY_FLAG_MASK)
+        return RT_ERR_BUSYWAIT_TIMEOUT;
+
+    if (regData & RTL8367C_RESET_FLAG_MASK)
+        return RT_ERR_STAT_CNTR_FAIL;
+
+    mibCounter = 0;
+    i = mibLength[mibIdx];
+    if (4 == i)
+        regAddr = RTL8367C_MIB_COUNTER_BASE_REG + 3;
+    else
+        regAddr = RTL8367C_MIB_COUNTER_BASE_REG + ((mibOff + 1) % 4);
+
+    while (i)
+    {
+        retVal = rtl8367c_getAsicReg(regAddr, &regData);
+        if (retVal != RT_ERR_OK)
+            return retVal;
+
+        mibCounter = (mibCounter << 16) | (regData & 0xFFFF);
+
+        regAddr--;
+        i--;
+    }
+
+    *pCounter = mibCounter;
+
+    return RT_ERR_OK;
+}
+int32_t rtl8367::rtk_stat_port_get(rtk_port_t port, rtk_stat_port_type_t cntr_idx, uint64_t *pCntr)
+{
+    int32_t retVal;
+    RTL8367C_MIBCOUNTER mib_idx;
+    uint64_t second_cnt;
+
+    if (NULL == pCntr)
+        return RT_ERR_NULL_POINTER;
+
+    /* Check port valid */
+    RTK_CHK_PORT_VALID(port);
+
+    if (cntr_idx >= STAT_PORT_CNTR_END)
+        return RT_ERR_STAT_INVALID_PORT_CNTR;
+
+    if ((retVal = _get_asic_mib_idx(cntr_idx, &mib_idx)) != RT_ERR_OK)
+        return retVal;
+
+    if (mib_idx == MIB_NOT_SUPPORT)
+        return RT_ERR_CHIP_NOT_SUPPORTED;
+
+    if ((retVal = rtl8367c_getAsicMIBsCounter(rtk_switch_port_L2P_get(port), mib_idx, pCntr)) != RT_ERR_OK)
+        return retVal;
+
+    if (cntr_idx == STAT_EtherStatsMulticastPkts)
+    {
+        if ((retVal = _get_asic_mib_idx(STAT_IfOutMulticastPkts, &mib_idx)) != RT_ERR_OK)
+            return retVal;
+
+        if ((retVal = rtl8367c_getAsicMIBsCounter(rtk_switch_port_L2P_get(port), mib_idx, &second_cnt)) != RT_ERR_OK)
+            return retVal;
+
+        *pCntr += second_cnt;
+    }
+
+    if (cntr_idx == STAT_EtherStatsBroadcastPkts)
+    {
+        if ((retVal = _get_asic_mib_idx(STAT_IfOutBroadcastPkts, &mib_idx)) != RT_ERR_OK)
+            return retVal;
+
+        if ((retVal = rtl8367c_getAsicMIBsCounter(rtk_switch_port_L2P_get(port), mib_idx, &second_cnt)) != RT_ERR_OK)
+            return retVal;
+
+        *pCntr += second_cnt;
+    }
+
+    return RT_ERR_OK;
+}
+
+/* Function Name:
+ *      rtl8367c_setAsicMIBsCounterReset
+ * Description:
+ *      Reset global/queue manage or per-port MIB counter
+ * Input:
+ *      greset  - Global reset
+ *      qmreset - Queue maganement reset
+ *      portmask    - Port reset mask
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK               - Success
+ *      RT_ERR_SMI              - SMI access error
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsicMIBsCounterReset(uint32_t greset, uint32_t qmreset, uint32_t portmask)
+{
+    int32_t retVal;
+    uint32_t regData;
+    uint32_t regBits;
+
+    regBits = RTL8367C_GLOBAL_RESET_MASK |
+              RTL8367C_QM_RESET_MASK |
+              RTL8367C_MIB_PORT07_MASK |
+              ((uint32_t)0x7 << 13);
+    regData = ((greset << RTL8367C_GLOBAL_RESET_OFFSET) & RTL8367C_GLOBAL_RESET_MASK) |
+              ((qmreset << RTL8367C_QM_RESET_OFFSET) & RTL8367C_QM_RESET_MASK) |
+              (((portmask & 0xFF) << RTL8367C_PORT0_RESET_OFFSET) & RTL8367C_MIB_PORT07_MASK) |
+              (((portmask >> 8) & 0x7) << 13);
+
+    retVal = rtl8367c_setAsicRegBits(RTL8367C_REG_MIB_CTRL0, regBits, (regData >> RTL8367C_PORT0_RESET_OFFSET));
+
+    return retVal;
+}
+int32_t rtl8367::rtk_stat_port_reset(rtk_port_t port)
+{
+    int32_t retVal;
+
+    /* Check port valid */
+    RTK_CHK_PORT_VALID(port);
+
+    if ((retVal = rtl8367c_setAsicMIBsCounterReset(0, 0, 1 << rtk_switch_port_L2P_get(port))) != RT_ERR_OK)
+        return retVal;
+
+    return RT_ERR_OK;
+}
+
+// ---------------------- PHY -------------------------
+
+/* Function Name:
+ *      rtl8370_setAsicPortEnableAll
+ * Description:
+ *      Set ALL ports enable.
+ * Input:s
+ *      enable - enable all ports.
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK           - Success
+ *      RT_ERR_SMI          - SMI access error
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsicPortEnableAll(uint32_t enable)
+{
+    if (enable >= 2)
+        return RT_ERR_INPUT;
+
+    return rtl8367c_setAsicRegBit(RTL8367C_REG_PHY_AD, RTL8367C_PDNPHY_OFFSET, !enable);
+}
+
+int32_t rtl8367::_rtk_port_phyReg_get(rtk_port_t port, rtk_port_phy_reg_t reg, uint32_t *pData)
+{
+    int32_t retVal;
+
+    /* Check Port Valid */
+    RTK_CHK_PORT_IS_UTP(port);
+
+    if ((retVal = rtl8367c_getAsicPHYReg(rtk_switch_port_L2P_get(port), reg, pData)) != RT_ERR_OK)
+        return retVal;
+
+    return RT_ERR_OK;
+}
+
+/* Function Name:
+ *      rtl8367c_setAsicPHYOCPReg
+ * Description:
+ *      Set PHY OCP registers
+ * Input:
+ *      phyNo   - Physical port number (0~7)
+ *      ocpAddr - OCP address
+ *      ocpData - Writing data
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK               - Success
+ *      RT_ERR_SMI              - SMI access error
+ *      RT_ERR_PHY_REG_ID       - invalid PHY address
+ *      RT_ERR_PHY_ID           - invalid PHY no
+ *      RT_ERR_BUSYWAIT_TIMEOUT - PHY access busy
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsicPHYOCPReg(uint32_t phyNo, uint32_t ocpAddr, uint32_t ocpData)
+{
+    int32_t retVal;
+    uint32_t regData;
+    uint32_t busyFlag, checkCounter;
+    uint32_t ocpAddrPrefix, ocpAddr9_6, ocpAddr5_1;
+
+    /*Check internal phy access busy or not*/
+    /*retVal = rtl8367c_getAsicRegBit(RTL8367C_REG_INDRECT_ACCESS_STATUS, RTL8367C_INDRECT_ACCESS_STATUS_OFFSET,&busyFlag);*/
+    retVal = rtl8367c_getAsicReg(RTL8367C_REG_INDRECT_ACCESS_STATUS, &busyFlag);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    if (busyFlag)
+        return RT_ERR_BUSYWAIT_TIMEOUT;
+
+    /* OCP prefix */
+    ocpAddrPrefix = ((ocpAddr & 0xFC00) >> 10);
+    if ((retVal = rtl8367c_setAsicRegBits(RTL8367C_REG_GPHY_OCP_MSB_0, RTL8367C_CFG_CPU_OCPADR_MSB_MASK, ocpAddrPrefix)) != RT_ERR_OK)
+        return retVal;
+
+    /*prepare access data*/
+    retVal = rtl8367c_setAsicReg(RTL8367C_REG_INDRECT_ACCESS_WRITE_DATA, ocpData);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    /*prepare access address*/
+    ocpAddr9_6 = ((ocpAddr >> 6) & 0x000F);
+    ocpAddr5_1 = ((ocpAddr >> 1) & 0x001F);
+    regData = RTL8367C_PHY_BASE | (ocpAddr9_6 << 8) | (phyNo << RTL8367C_PHY_OFFSET) | ocpAddr5_1;
+    retVal = rtl8367c_setAsicReg(RTL8367C_REG_INDRECT_ACCESS_ADDRESS, regData);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    /*Set WRITE Command*/
+    retVal = rtl8367c_setAsicReg(RTL8367C_REG_INDRECT_ACCESS_CTRL, RTL8367C_CMD_MASK | RTL8367C_RW_MASK);
+
+    checkCounter = 100;
+    while (checkCounter)
+    {
+        retVal = rtl8367c_getAsicReg(RTL8367C_REG_INDRECT_ACCESS_STATUS, &busyFlag);
+        if ((retVal != RT_ERR_OK) || busyFlag)
+        {
+            checkCounter--;
+            if (0 == checkCounter)
+                return RT_ERR_BUSYWAIT_TIMEOUT;
+        }
+        else
+        {
+            checkCounter = 0;
+        }
+    }
+
+    return retVal;
+}
+/* Function Name:
+ *      rtl8367c_setAsicPHYReg
+ * Description:
+ *      Set PHY registers
+ * Input:
+ *      phyNo   - Physical port number (0~7)
+ *      phyAddr - PHY address (0~31)
+ *      phyData - Writing data
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK               - Success
+ *      RT_ERR_SMI              - SMI access error
+ *      RT_ERR_PHY_REG_ID       - invalid PHY address
+ *      RT_ERR_PHY_ID           - invalid PHY no
+ *      RT_ERR_BUSYWAIT_TIMEOUT - PHY access busy
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsicPHYReg(uint32_t phyNo, uint32_t phyAddr, uint32_t phyData)
+{
+    uint32_t ocp_addr;
+
+    if (phyAddr > RTL8367C_PHY_REGNOMAX)
+        return RT_ERR_PHY_REG_ID;
+
+    ocp_addr = 0xa400 + phyAddr * 2;
+
+    return rtl8367c_setAsicPHYOCPReg(phyNo, ocp_addr, phyData);
+}
+
+int32_t rtl8367::_rtk_port_phyReg_set(rtk_port_t port, rtk_port_phy_reg_t reg, uint32_t regData)
+{
+    int32_t retVal;
+
+    /* Check Port Valid */
+    RTK_CHK_PORT_IS_UTP(port);
+
+    if ((retVal = rtl8367c_setAsicPHYReg(rtk_switch_port_L2P_get(port), reg, regData)) != RT_ERR_OK)
+        return retVal;
+
+    return RT_ERR_OK;
+}
+
+int32_t rtl8367::rtk_port_phyEnableAll_set(rtk_enable_t enable)
+{
+    int32_t retVal;
+    uint32_t data;
+    uint32_t port;
+
+    if (enable >= RTK_ENABLE_END)
+        return RT_ERR_ENABLE;
+
+    if ((retVal = rtl8367c_setAsicPortEnableAll(enable)) != RT_ERR_OK)
+        return retVal;
+
+    RTK_SCAN_ALL_LOG_PORT(port)
+    {
+        if (rtk_switch_isUtpPort(port) == RT_ERR_OK)
+        {
+            if ((retVal = _rtk_port_phyReg_get((rtk_port_t)port, (rtk_port_phy_reg_t)PHY_CONTROL_REG, &data)) != RT_ERR_OK)
+                return retVal;
+
+            if (ENABLED == enable)
+            {
+                data &= 0xF7FF;
+                data |= 0x0200;
+            }
+            else
+            {
+                data |= 0x0800;
+            }
+
+            if ((retVal = _rtk_port_phyReg_set((rtk_port_t)port, (rtk_port_phy_reg_t)PHY_CONTROL_REG, data)) != RT_ERR_OK)
+                return retVal;
+        }
+    }
+
+    return RT_ERR_OK;
+}
+
+/* Function Name:
+ *      rtk_switch_isComboPort
+ * Description:
+ *      Check is logical port a Combo port
+ * Input:
+ *      logicalPort     - logical port ID
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK       - Port ID is a combo port
+ *      RT_ERR_FAILED   - Port ID is not a combo port
+ *      RT_ERR_NOT_INIT - Not Initialize
+ * Note:
+ *
+ */
+int32_t rtl8367::rtk_switch_isComboPort(rtk_port_t logicalPort)
+{
+    if (logicalPort >= RTK_SWITCH_PORT_NUM)
+        return RT_ERR_FAILED;
+
+    if (halCtrl.combo_logical_port == logicalPort)
+        return RT_ERR_OK;
+    else
+        return RT_ERR_FAILED;
+}
+
+int32_t rtl8367::_rtk_port_phyComboPortMedia_get(rtk_port_t port, rtk_port_media_t *pMedia)
+{
+    int32_t retVal;
+    uint32_t regData;
+    uint32_t data;
+
+    /* Check Port Valid */
+    RTK_CHK_PORT_IS_UTP(port);
+
+    /* Check Combo Port ID */
+    RTK_CHK_PORT_IS_COMBO(port);
+
+    if ((retVal = rtl8367c_setAsicReg(0x13C2, 0x0249)) != RT_ERR_OK)
+        return retVal;
+
+    if ((retVal = rtl8367c_getAsicReg(0x1300, &regData)) != RT_ERR_OK)
+        return retVal;
+
+    if ((retVal = rtl8367c_setAsicReg(0x13C2, 0x0000)) != RT_ERR_OK)
+        return retVal;
+
+    if (regData != 0x6367)
+    {
+        *pMedia = PORT_MEDIA_COPPER;
+    }
+    else
+    {
+        if ((retVal = rtl8367c_getAsicRegBit(RTL8367C_REG_UTP_FIB_DET, RTL8367C_UTP_FIRST_OFFSET, &data)) != RT_ERR_OK)
+            return retVal;
+
+        if (data == 1)
+            *pMedia = PORT_MEDIA_COPPER;
+        else
+            *pMedia = PORT_MEDIA_FIBER;
+    }
+
+    return RT_ERR_OK;
+}
+
+int32_t rtl8367::_rtk_port_FiberModeAbility_set(rtk_port_t port, rtk_port_phy_ability_t *pAbility)
+{
+    int32_t retVal;
+    uint32_t regData;
+
+    /* Check Combo port or not */
+    RTK_CHK_PORT_IS_COMBO(port);
+
+    /* Flow Control */
+    if ((retVal = rtl8367c_getAsicReg(RTL8367C_REG_FIB0_CFG04, &regData)) != RT_ERR_OK)
+        return retVal;
+
+    if (pAbility->AsyFC == 1)
+        regData |= (0x0001 << 8);
+    else
+        regData &= ~(0x0001 << 8);
+
+    if (pAbility->FC == 1)
+        regData |= (0x0001 << 7);
+    else
+        regData &= ~(0x0001 << 7);
+
+    if ((retVal = rtl8367c_setAsicReg(RTL8367C_REG_FIB0_CFG04, regData)) != RT_ERR_OK)
+        return retVal;
+
+    /* Speed ability */
+    if ((pAbility->Full_1000 == 1) && (pAbility->Full_100 == 1) && (pAbility->AutoNegotiation == 1))
+    {
+        if ((retVal = rtl8367c_setAsicRegBit(RTL8367C_REG_FIBER_CFG_1, RTL8367C_SDS_FRC_MODE_OFFSET, 0)) != RT_ERR_OK)
+            return retVal;
+
+        if ((retVal = rtl8367c_setAsicRegBits(RTL8367C_REG_FIBER_CFG_1, RTL8367C_SDS_MODE_MASK, 7)) != RT_ERR_OK)
+            return retVal;
+
+        if ((retVal = rtl8367c_setAsicReg(RTL8367C_REG_FIB0_CFG00, 0x1140)) != RT_ERR_OK)
+            return retVal;
+    }
+    else if (pAbility->Full_1000 == 1)
+    {
+        if ((retVal = rtl8367c_setAsicRegBit(RTL8367C_REG_FIBER_CFG_1, RTL8367C_SDS_FRC_MODE_OFFSET, 1)) != RT_ERR_OK)
+            return retVal;
+
+        if ((retVal = rtl8367c_setAsicRegBits(RTL8367C_REG_FIBER_CFG_1, RTL8367C_SDS_MODE_MASK, 4)) != RT_ERR_OK)
+            return retVal;
+
+        if (pAbility->AutoNegotiation == 1)
+        {
+            if ((retVal = rtl8367c_setAsicReg(RTL8367C_REG_FIB0_CFG00, 0x1140)) != RT_ERR_OK)
+                return retVal;
+        }
+        else
+        {
+            if ((retVal = rtl8367c_setAsicReg(RTL8367C_REG_FIB0_CFG00, 0x0140)) != RT_ERR_OK)
+                return retVal;
+        }
+    }
+    else if (pAbility->Full_100 == 1)
+    {
+        if ((retVal = rtl8367c_setAsicRegBit(RTL8367C_REG_FIBER_CFG_1, RTL8367C_SDS_FRC_MODE_OFFSET, 1)) != RT_ERR_OK)
+            return retVal;
+
+        if ((retVal = rtl8367c_setAsicRegBits(RTL8367C_REG_FIBER_CFG_1, RTL8367C_SDS_MODE_MASK, 5)) != RT_ERR_OK)
+            return retVal;
+
+        if ((retVal = rtl8367c_setAsicReg(RTL8367C_REG_FIB0_CFG00, 0x2100)) != RT_ERR_OK)
+            return retVal;
+    }
+
+    /* Digital software reset */
+    if ((retVal = rtl8367c_setAsicReg(RTL8367C_REG_SDS_INDACS_ADR, 0x0003)) != RT_ERR_OK)
+        return retVal;
+
+    if ((retVal = rtl8367c_setAsicReg(RTL8367C_REG_SDS_INDACS_CMD, 0x0080)) != RT_ERR_OK)
+        return retVal;
+
+    if ((retVal = rtl8367c_getAsicReg(RTL8367C_REG_SDS_INDACS_DATA, &regData)) != RT_ERR_OK)
+        return retVal;
+
+    regData |= (0x0001 << 6);
+
+    if ((retVal = rtl8367c_setAsicReg(RTL8367C_REG_SDS_INDACS_DATA, regData)) != RT_ERR_OK)
+        return retVal;
+
+    if ((retVal = rtl8367c_setAsicReg(RTL8367C_REG_SDS_INDACS_ADR, 0x0003)) != RT_ERR_OK)
+        return retVal;
+
+    if ((retVal = rtl8367c_setAsicReg(RTL8367C_REG_SDS_INDACS_CMD, 0x00C0)) != RT_ERR_OK)
+        return retVal;
+
+    regData &= ~(0x0001 << 6);
+
+    if ((retVal = rtl8367c_setAsicReg(RTL8367C_REG_SDS_INDACS_DATA, regData)) != RT_ERR_OK)
+        return retVal;
+
+    if ((retVal = rtl8367c_setAsicReg(RTL8367C_REG_SDS_INDACS_ADR, 0x0003)) != RT_ERR_OK)
+        return retVal;
+
+    if ((retVal = rtl8367c_setAsicReg(RTL8367C_REG_SDS_INDACS_CMD, 0x00C0)) != RT_ERR_OK)
+        return retVal;
+
+    /* CDR reset */
+    if ((retVal = rtl8367c_setAsicReg(RTL8367C_REG_SDS_INDACS_DATA, 0x1401)) != RT_ERR_OK)
+        return retVal;
+
+    if ((retVal = rtl8367c_setAsicReg(RTL8367C_REG_SDS_INDACS_ADR, 0x0000)) != RT_ERR_OK)
+        return retVal;
+
+    if ((retVal = rtl8367c_setAsicReg(RTL8367C_REG_SDS_INDACS_CMD, 0x00C0)) != RT_ERR_OK)
+        return retVal;
+
+    if ((retVal = rtl8367c_setAsicReg(RTL8367C_REG_SDS_INDACS_DATA, 0x1403)) != RT_ERR_OK)
+        return retVal;
+
+    if ((retVal = rtl8367c_setAsicReg(RTL8367C_REG_SDS_INDACS_ADR, 0x0000)) != RT_ERR_OK)
+        return retVal;
+
+    if ((retVal = rtl8367c_setAsicReg(RTL8367C_REG_SDS_INDACS_CMD, 0x00C0)) != RT_ERR_OK)
+        return retVal;
+
+    return RT_ERR_OK;
+}
+int32_t rtl8367::rtk_port_phyAutoNegoAbility_set(rtk_port_t port, rtk_port_phy_ability_t *pAbility)
+{
+    int32_t retVal;
+    uint32_t phyData;
+    uint32_t phyEnMsk0;
+    uint32_t phyEnMsk4;
+    uint32_t phyEnMsk9;
+    rtk_port_media_t media_type;
+
+    /* Check Port Valid */
+    RTK_CHK_PORT_IS_UTP(port);
+
+    if (NULL == pAbility)
+        return RT_ERR_NULL_POINTER;
+
+    if (pAbility->Half_10 >= RTK_ENABLE_END || pAbility->Full_10 >= RTK_ENABLE_END ||
+        pAbility->Half_100 >= RTK_ENABLE_END || pAbility->Full_100 >= RTK_ENABLE_END ||
+        pAbility->Full_1000 >= RTK_ENABLE_END || pAbility->AutoNegotiation >= RTK_ENABLE_END ||
+        pAbility->AsyFC >= RTK_ENABLE_END || pAbility->FC >= RTK_ENABLE_END)
+        return RT_ERR_INPUT;
+
+    if (rtk_switch_isComboPort(port) == RT_ERR_OK)
+    {
+        if ((retVal = _rtk_port_phyComboPortMedia_get(port, &media_type)) != RT_ERR_OK)
+            return retVal;
+
+        if (media_type == PORT_MEDIA_FIBER)
+        {
+            return _rtk_port_FiberModeAbility_set(port, pAbility);
+        }
+    }
+
+    /*for PHY auto mode setup*/
+    pAbility->AutoNegotiation = 1;
+
+    phyEnMsk0 = 0;
+    phyEnMsk4 = 0;
+    phyEnMsk9 = 0;
+
+    if (1 == pAbility->Half_10)
+    {
+        /*10BASE-TX half duplex capable in reg 4.5*/
+        phyEnMsk4 = phyEnMsk4 | (1 << 5);
+
+        /*Speed selection [1:0] */
+        /* 11=Reserved*/
+        /* 10= 1000Mpbs*/
+        /* 01= 100Mpbs*/
+        /* 00= 10Mpbs*/
+        phyEnMsk0 = phyEnMsk0 & (~(1 << 6));
+        phyEnMsk0 = phyEnMsk0 & (~(1 << 13));
+    }
+
+    if (1 == pAbility->Full_10)
+    {
+        /*10BASE-TX full duplex capable in reg 4.6*/
+        phyEnMsk4 = phyEnMsk4 | (1 << 6);
+        /*Speed selection [1:0] */
+        /* 11=Reserved*/
+        /* 10= 1000Mpbs*/
+        /* 01= 100Mpbs*/
+        /* 00= 10Mpbs*/
+        phyEnMsk0 = phyEnMsk0 & (~(1 << 6));
+        phyEnMsk0 = phyEnMsk0 & (~(1 << 13));
+
+        /*Full duplex mode in reg 0.8*/
+        phyEnMsk0 = phyEnMsk0 | (1 << 8);
+    }
+
+    if (1 == pAbility->Half_100)
+    {
+        /*100BASE-TX half duplex capable in reg 4.7*/
+        phyEnMsk4 = phyEnMsk4 | (1 << 7);
+        /*Speed selection [1:0] */
+        /* 11=Reserved*/
+        /* 10= 1000Mpbs*/
+        /* 01= 100Mpbs*/
+        /* 00= 10Mpbs*/
+        phyEnMsk0 = phyEnMsk0 & (~(1 << 6));
+        phyEnMsk0 = phyEnMsk0 | (1 << 13);
+    }
+
+    if (1 == pAbility->Full_100)
+    {
+        /*100BASE-TX full duplex capable in reg 4.8*/
+        phyEnMsk4 = phyEnMsk4 | (1 << 8);
+        /*Speed selection [1:0] */
+        /* 11=Reserved*/
+        /* 10= 1000Mpbs*/
+        /* 01= 100Mpbs*/
+        /* 00= 10Mpbs*/
+        phyEnMsk0 = phyEnMsk0 & (~(1 << 6));
+        phyEnMsk0 = phyEnMsk0 | (1 << 13);
+        /*Full duplex mode in reg 0.8*/
+        phyEnMsk0 = phyEnMsk0 | (1 << 8);
+    }
+
+    if (1 == pAbility->Full_1000)
+    {
+        /*1000 BASE-T FULL duplex capable setting in reg 9.9*/
+        phyEnMsk9 = phyEnMsk9 | (1 << 9);
+
+        /*Speed selection [1:0] */
+        /* 11=Reserved*/
+        /* 10= 1000Mpbs*/
+        /* 01= 100Mpbs*/
+        /* 00= 10Mpbs*/
+        phyEnMsk0 = phyEnMsk0 | (1 << 6);
+        phyEnMsk0 = phyEnMsk0 & (~(1 << 13));
+
+        /*Auto-Negotiation setting in reg 0.12*/
+        phyEnMsk0 = phyEnMsk0 | (1 << 12);
+    }
+
+    if (1 == pAbility->AutoNegotiation)
+    {
+        /*Auto-Negotiation setting in reg 0.12*/
+        phyEnMsk0 = phyEnMsk0 | (1 << 12);
+    }
+
+    if (1 == pAbility->AsyFC)
+    {
+        /*Asymetric flow control in reg 4.11*/
+        phyEnMsk4 = phyEnMsk4 | (1 << 11);
+    }
+    if (1 == pAbility->FC)
+    {
+        /*Flow control in reg 4.10*/
+        phyEnMsk4 = phyEnMsk4 | (1 << 10);
+    }
+
+    /*1000 BASE-T control register setting*/
+    if ((retVal = rtl8367c_getAsicPHYReg(rtk_switch_port_L2P_get(port), PHY_1000_BASET_CONTROL_REG, &phyData)) != RT_ERR_OK)
+        return retVal;
+
+    phyData = (phyData & (~0x0200)) | phyEnMsk9;
+
+    if ((retVal = rtl8367c_setAsicPHYReg(rtk_switch_port_L2P_get(port), PHY_1000_BASET_CONTROL_REG, phyData)) != RT_ERR_OK)
+        return retVal;
+
+    /*Auto-Negotiation control register setting*/
+    if ((retVal = rtl8367c_getAsicPHYReg(rtk_switch_port_L2P_get(port), PHY_AN_ADVERTISEMENT_REG, &phyData)) != RT_ERR_OK)
+        return retVal;
+
+    phyData = (phyData & (~0x0DE0)) | phyEnMsk4;
+    if ((retVal = rtl8367c_setAsicPHYReg(rtk_switch_port_L2P_get(port), PHY_AN_ADVERTISEMENT_REG, phyData)) != RT_ERR_OK)
+        return retVal;
+
+    /*Control register setting and restart auto*/
+    if ((retVal = rtl8367c_getAsicPHYReg(rtk_switch_port_L2P_get(port), PHY_CONTROL_REG, &phyData)) != RT_ERR_OK)
+        return retVal;
+
+    phyData = (phyData & (~0x3140)) | phyEnMsk0;
+    /*If have auto-negotiation capable, then restart auto negotiation*/
+    if (1 == pAbility->AutoNegotiation)
+    {
+        phyData = phyData | (1 << 9);
+    }
+
+    if ((retVal = rtl8367c_setAsicPHYReg(rtk_switch_port_L2P_get(port), PHY_CONTROL_REG, phyData)) != RT_ERR_OK)
+        return retVal;
+
+    return RT_ERR_OK;
+}
+
+int32_t rtl8367::_rtk_port_FiberModeAbility_get(rtk_port_t port, rtk_port_phy_ability_t *pAbility)
+{
+    int32_t retVal;
+    uint32_t data, regData;
+
+    /* Check Combo port or not */
+    RTK_CHK_PORT_IS_COMBO(port);
+
+    memset(pAbility, 0x00, sizeof(rtk_port_phy_ability_t));
+
+    /* Flow Control */
+    if ((retVal = rtl8367c_setAsicRegBit(RTL8367C_REG_FIBER_CFG_1, RTL8367C_SDS_FRC_REG4_OFFSET, 1)) != RT_ERR_OK)
+        return retVal;
+
+    if ((retVal = rtl8367c_setAsicRegBit(RTL8367C_REG_FIBER_CFG_1, RTL8367C_SDS_FRC_REG4_FIB100_OFFSET, 0)) != RT_ERR_OK)
+        return retVal;
+
+    if ((retVal = rtl8367c_setAsicReg(RTL8367C_REG_SDS_INDACS_ADR, 0x0044)) != RT_ERR_OK)
+        return retVal;
+
+    if ((retVal = rtl8367c_setAsicReg(RTL8367C_REG_SDS_INDACS_CMD, 0x0080)) != RT_ERR_OK)
+        return retVal;
+
+    if ((retVal = rtl8367c_getAsicReg(RTL8367C_REG_SDS_INDACS_DATA, &regData)) != RT_ERR_OK)
+        return retVal;
+
+    if (regData & (0x0001 << 8))
+        pAbility->AsyFC = 1;
+
+    if (regData & (0x0001 << 7))
+        pAbility->FC = 1;
+
+    /* Speed ability */
+    if ((retVal = rtl8367c_getAsicRegBit(RTL8367C_REG_FIBER_CFG_1, RTL8367C_SDS_FRC_MODE_OFFSET, &data)) != RT_ERR_OK)
+        return retVal;
+
+    if (data == 0)
+    {
+        pAbility->AutoNegotiation = 1;
+        pAbility->Full_1000 = 1;
+        pAbility->Full_100 = 1;
+    }
+    else
+    {
+        if ((retVal = rtl8367c_getAsicRegBits(RTL8367C_REG_FIBER_CFG_1, RTL8367C_SDS_MODE_MASK, &data)) != RT_ERR_OK)
+            return retVal;
+
+        if (data == 4)
+        {
+            pAbility->Full_1000 = 1;
+
+            if ((retVal = rtl8367c_getAsicReg(RTL8367C_REG_FIB0_CFG00, &data)) != RT_ERR_OK)
+                return retVal;
+
+            if (data & 0x1000)
+                pAbility->AutoNegotiation = 1;
+            else
+                pAbility->AutoNegotiation = 0;
+        }
+        else if (data == 5)
+            pAbility->Full_100 = 1;
+        else
+            return RT_ERR_FAILED;
+    }
+
+    return RT_ERR_OK;
+}
+
+int32_t rtl8367::rtk_port_phyAutoNegoAbility_get(rtk_port_t port, rtk_port_phy_ability_t *pAbility)
+{
+    int32_t retVal;
+    uint32_t phyData0;
+    uint32_t phyData4;
+    uint32_t phyData9;
+    rtk_port_media_t media_type;
+
+    /* Check Port Valid */
+    RTK_CHK_PORT_IS_UTP(port);
+
+    if (NULL == pAbility)
+        return RT_ERR_NULL_POINTER;
+
+    if (rtk_switch_isComboPort(port) == RT_ERR_OK)
+    {
+        if ((retVal = _rtk_port_phyComboPortMedia_get(port, &media_type)) != RT_ERR_OK)
+            return retVal;
+
+        if (media_type == PORT_MEDIA_FIBER)
+        {
+            return _rtk_port_FiberModeAbility_get(port, pAbility);
+        }
+    }
+
+    /*Control register setting and restart auto*/
+    if ((retVal = rtl8367c_getAsicPHYReg(rtk_switch_port_L2P_get(port), PHY_CONTROL_REG, &phyData0)) != RT_ERR_OK)
+        return retVal;
+
+    /*Auto-Negotiation control register setting*/
+    if ((retVal = rtl8367c_getAsicPHYReg(rtk_switch_port_L2P_get(port), PHY_AN_ADVERTISEMENT_REG, &phyData4)) != RT_ERR_OK)
+        return retVal;
+
+    /*1000 BASE-T control register setting*/
+    if ((retVal = rtl8367c_getAsicPHYReg(rtk_switch_port_L2P_get(port), PHY_1000_BASET_CONTROL_REG, &phyData9)) != RT_ERR_OK)
+        return retVal;
+
+    if (phyData9 & (1 << 9))
+        pAbility->Full_1000 = 1;
+    else
+        pAbility->Full_1000 = 0;
+
+    if (phyData4 & (1 << 11))
+        pAbility->AsyFC = 1;
+    else
+        pAbility->AsyFC = 0;
+
+    if (phyData4 & (1 << 10))
+        pAbility->FC = 1;
+    else
+        pAbility->FC = 0;
+
+    if (phyData4 & (1 << 8))
+        pAbility->Full_100 = 1;
+    else
+        pAbility->Full_100 = 0;
+
+    if (phyData4 & (1 << 7))
+        pAbility->Half_100 = 1;
+    else
+        pAbility->Half_100 = 0;
+
+    if (phyData4 & (1 << 6))
+        pAbility->Full_10 = 1;
+    else
+        pAbility->Full_10 = 0;
+
+    if (phyData4 & (1 << 5))
+        pAbility->Half_10 = 1;
+    else
+        pAbility->Half_10 = 0;
+
+    if (phyData0 & (1 << 12))
+        pAbility->AutoNegotiation = 1;
+    else
+        pAbility->AutoNegotiation = 0;
+
+    return RT_ERR_OK;
+}
