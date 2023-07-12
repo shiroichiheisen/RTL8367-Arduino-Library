@@ -48,7 +48,7 @@ This library is based on the realteck original library, theres a programming gui
 - [x] rtk_l2_ipVidMcastAddr_del
 - [x] rtk_l2_ipVidMcastAddr_get
 - [x] rtk_l2_ipVidMcastAddr_next_get
-- [x] rtk_l2_flushtype_set - Dont contain in api 1.3.11 or 1.3.12
+- [] rtk_l2_flushtype_set - Dont contain in api 1.3.11 or 1.3.12
 - [x] rtk_qos_init
 - [x] rtk_qos_portPri_set
 - [x] rtk_qos_1pPriRemap_set
