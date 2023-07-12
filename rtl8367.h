@@ -149,6 +149,12 @@ public:
 
     int32_t rtk_rate_stormControlMeterIdx_set(rtk_port_t port, rtk_rate_storm_group_t stormType, uint32_t index);
 
+    int32_t rtk_rate_stormControlMeterIdx_get(rtk_port_t port, rtk_rate_storm_group_t stormType, uint32_t *pIndex);
+
+    int32_t rtk_mirror_portBased_set(rtk_port_t mirroring_port, rtk_portmask_t *pMirrored_rx_portmask, rtk_portmask_t *pMirrored_tx_portmask);
+
+    int32_t rtk_port_macForceLinkExt_set(rtk_port_t port, rtk_mode_ext_t mode, rtk_port_mac_ability_t *pPortability);
+
 private:
     uint32_t vlan_mbrCfgVid[RTL8367C_CVIDXNO];
     vlan_mbrCfgType_t vlan_mbrCfgUsage[RTL8367C_CVIDXNO];
@@ -269,6 +275,17 @@ private:
         {                                                  \
             return RT_ERR_PORT_ID;                         \
         }                                                  \
+    } while (0)
+
+int32_t rtl8367::rtk_switch_isExtPort(rtk_port_t logicalPort);
+
+#define RTK_CHK_PORT_IS_EXT(__port__)                    \
+    do                                                   \
+    {                                                    \
+        if (rtk_switch_isExtPort(__port__) != RT_ERR_OK) \
+        {                                                \
+            return RT_ERR_PORT_ID;                       \
+        }                                                \
     } while (0)
 
     void _smi_start();
@@ -401,5 +418,15 @@ private:
     int32_t rtl8367c_setAsicStormFilterUnknownMulticastMeter(uint32_t port, uint32_t meter);
     int32_t rtl8367c_setAsicStormFilterMulticastMeter(uint32_t port, uint32_t meter);
     int32_t rtl8367c_setAsicStormFilterBroadcastMeter(uint32_t port, uint32_t meter);
+    int32_t rtl8367c_getAsicStormFilterUnknownUnicastMeter(uint32_t port, uint32_t *pMeter);
+    int32_t rtl8367c_getAsicStormFilterUnknownMulticastMeter(uint32_t port, uint32_t *pMeter);
+    int32_t rtl8367c_getAsicStormFilterMulticastMeter(uint32_t port, uint32_t *pMeter);
+    int32_t rtl8367c_getAsicStormFilterBroadcastMeter(uint32_t port, uint32_t *pMeter);
+    rtk_port_t rtk_switch_maxLogicalPort_get();
+    int32_t rtl8367c_setAsicPortMirror(uint32_t source, uint32_t monitor);
+    int32_t rtl8367c_setAsicPortMirrorMask(uint32_t SourcePortmask);
+    int32_t rtl8367c_setAsicPortMirrorRxFunction(uint32_t enabled);
+    int32_t rtl8367c_setAsicPortMirrorTxFunction(uint32_t enabled);
+    int32_t rtl8367c_setAsicPortForceLinkExt(uint32_t id, rtl8367c_port_ability_t *pPortAbility);
 };
 #endif

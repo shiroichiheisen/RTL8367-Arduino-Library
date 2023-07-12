@@ -80,6 +80,8 @@ This library is based on the realteck original library, theres a programming gui
 - [x] rtk_rate_stormControlPortEnable_set
 - [x] rtk_rate_stormControlPortEnable_get
 - [x] rtk_rate_stormControlMeterIdx_set
+- [x] rtk_rate_stormControlMeterIdx_get
+- [x] rtk_mirror_portBased_set
 
 # tested on:
 

@@ -120,6 +120,177 @@
 
 #define RTK_METER_NUM (RTK_MAX_METER_ID + 1)
 
+#define PHY_STATUS_REG 1
+#define PHY_AN_LINKPARTNER_REG 5
+#define PHY_1000_BASET_STATUS_REG 10
+
+#define RTK_EFID_MAX 0x7
+
+#define RTK_FIBER_FORCE_1000M 3
+#define RTK_FIBER_FORCE_100M 5
+#define RTK_FIBER_FORCE_100M1000M 7
+
+#define RTK_INDRECT_ACCESS_CRTL 0x1f00
+#define RTK_INDRECT_ACCESS_STATUS 0x1f01
+#define RTK_INDRECT_ACCESS_ADDRESS 0x1f02
+#define RTK_INDRECT_ACCESS_WRITE_DATA 0x1f03
+#define RTK_INDRECT_ACCESS_READ_DATA 0x1f04
+#define RTK_INDRECT_ACCESS_DELAY 0x1f80
+#define RTK_INDRECT_ACCESS_BURST 0x1f81
+#define RTK_RW_MASK 0x2
+#define RTK_CMD_MASK 0x1
+#define RTK_PHY_BUSY_OFFSET 2
+
+typedef struct rtl8367c_port_ability_s
+{
+    uint16_t forcemode;
+    uint16_t mstfault;
+    uint16_t mstmode;
+    uint16_t nway;
+    uint16_t txpause;
+    uint16_t rxpause;
+    uint16_t link;
+    uint16_t duplex;
+    uint16_t speed;
+} rtl8367c_port_ability_t;
+
+typedef enum rtk_mode_ext_e
+{
+    MODE_EXT_DISABLE = 0,
+    MODE_EXT_RGMII,
+    MODE_EXT_MII_MAC,
+    MODE_EXT_MII_PHY,
+    MODE_EXT_TMII_MAC,
+    MODE_EXT_TMII_PHY,
+    MODE_EXT_GMII,
+    MODE_EXT_RMII_MAC,
+    MODE_EXT_RMII_PHY,
+    MODE_EXT_SGMII,
+    MODE_EXT_HSGMII,
+    MODE_EXT_1000X_100FX,
+    MODE_EXT_1000X,
+    MODE_EXT_100FX,
+    MODE_EXT_RGMII_2,
+    MODE_EXT_MII_MAC_2,
+    MODE_EXT_MII_PHY_2,
+    MODE_EXT_TMII_MAC_2,
+    MODE_EXT_TMII_PHY_2,
+    MODE_EXT_RMII_MAC_2,
+    MODE_EXT_RMII_PHY_2,
+    MODE_EXT_END
+} rtk_mode_ext_t;
+
+typedef enum rtk_port_duplex_e
+{
+    PORT_HALF_DUPLEX = 0,
+    PORT_FULL_DUPLEX,
+    PORT_DUPLEX_END
+} rtk_port_duplex_t;
+
+typedef enum rtk_port_linkStatus_e
+{
+    PORT_LINKDOWN = 0,
+    PORT_LINKUP,
+    PORT_LINKSTATUS_END
+} rtk_port_linkStatus_t;
+
+typedef struct rtk_port_mac_ability_s
+{
+    uint32_t forcemode;
+    uint32_t speed;
+    uint32_t duplex;
+    uint32_t link;
+    uint32_t nway;
+    uint32_t txpause;
+    uint32_t rxpause;
+} rtk_port_mac_ability_t;
+
+typedef enum rtk_port_phy_mdix_mode_e
+{
+    PHY_AUTO_CROSSOVER_MODE = 0,
+    PHY_FORCE_MDI_MODE,
+    PHY_FORCE_MDIX_MODE,
+    PHY_FORCE_MODE_END
+} rtk_port_phy_mdix_mode_t;
+
+typedef enum rtk_port_phy_mdix_status_e
+{
+    PHY_STATUS_AUTO_MDI_MODE = 0,
+    PHY_STATUS_AUTO_MDIX_MODE,
+    PHY_STATUS_FORCE_MDI_MODE,
+    PHY_STATUS_FORCE_MDIX_MODE,
+    PHY_STATUS_FORCE_MODE_END
+} rtk_port_phy_mdix_status_t;
+
+typedef enum rtk_port_phy_test_mode_e
+{
+    PHY_TEST_MODE_NORMAL = 0,
+    PHY_TEST_MODE_1,
+    PHY_TEST_MODE_2,
+    PHY_TEST_MODE_3,
+    PHY_TEST_MODE_4,
+    PHY_TEST_MODE_END
+} rtk_port_phy_test_mode_t;
+
+typedef enum rtk_port_speed_e
+{
+    PORT_SPEED_10M = 0,
+    PORT_SPEED_100M,
+    PORT_SPEED_1000M,
+    PORT_SPEED_500M,
+    PORT_SPEED_2500M,
+    PORT_SPEED_END
+} rtk_port_speed_t;
+
+typedef struct rtk_rtctResult_s
+{
+    rtk_port_speed_t linkType;
+    union
+    {
+        struct fe_result_s
+        {
+            uint32_t isRxShort;
+            uint32_t isTxShort;
+            uint32_t isRxOpen;
+            uint32_t isTxOpen;
+            uint32_t isRxMismatch;
+            uint32_t isTxMismatch;
+            uint32_t isRxLinedriver;
+            uint32_t isTxLinedriver;
+            uint32_t rxLen;
+            uint32_t txLen;
+        } fe_result;
+
+        struct ge_result_s
+        {
+            uint32_t channelAShort;
+            uint32_t channelBShort;
+            uint32_t channelCShort;
+            uint32_t channelDShort;
+
+            uint32_t channelAOpen;
+            uint32_t channelBOpen;
+            uint32_t channelCOpen;
+            uint32_t channelDOpen;
+
+            uint32_t channelAMismatch;
+            uint32_t channelBMismatch;
+            uint32_t channelCMismatch;
+            uint32_t channelDMismatch;
+
+            uint32_t channelALinedriver;
+            uint32_t channelBLinedriver;
+            uint32_t channelCLinedriver;
+            uint32_t channelDLinedriver;
+
+            uint32_t channelALen;
+            uint32_t channelBLen;
+            uint32_t channelCLen;
+            uint32_t channelDLen;
+        } ge_result;
+    } result;
+} rtk_rtctResult_t;
+
 typedef enum rtk_meter_type_e
 {
     METER_TYPE_KBPS = 0, /* Kbps */
@@ -358,6 +529,13 @@ typedef enum rtk_led_config_e
     LED_CONFIG_END,
 } rtk_led_congig_t;
 
+typedef enum rtk_enable_e
+{
+    DISABLED_RTK = 0,
+    ENABLED,
+    RTK_ENABLE_END
+} rtk_enable_t;
+
 typedef struct rtk_led_ability_s
 {
     rtk_enable_t link_10m;
@@ -500,18 +678,6 @@ typedef enum init_state_e
     INIT_STATE_END
 } init_state_t;
 
-typedef struct rtl8367c_rma_s
-{
-
-    uint16_t operation;
-    uint16_t discard_storm_filter;
-    uint16_t trap_priority;
-    uint16_t keep_format;
-    uint16_t vlan_leaky;
-    uint16_t portiso_leaky;
-
-} rtl8367c_rma_t;
-
 enum RTL8367C_LUTREADMETHOD
 {
 
@@ -543,13 +709,6 @@ typedef enum rtk_port_e
     UNDEFINE_PORT = 30,
     RTK_PORT_MAX = 31
 } rtk_port_t;
-
-typedef enum rtk_enable_e
-{
-    DISABLED_RTK = 0,
-    ENABLED,
-    RTK_ENABLE_END
-} rtk_enable_t;
 
 typedef enum rtk_vlan_acceptFrameType_e
 {
