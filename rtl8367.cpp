@@ -13542,3 +13542,244 @@ int32_t rtl8367::rtk_filter_igrAcl_cfg_get(rtk_filter_id_t filter_id, rtk_filter
 
     return RT_ERR_OK;
 }
+
+int32_t rtl8367::rtk_filter_igrAcl_state_set(rtk_port_t port, rtk_filter_state_t state)
+{
+    int32_t ret;
+
+    /* Check port valid */
+    RTK_CHK_PORT_VALID(port);
+
+    if (state >= RTK_ENABLE_END)
+        return RT_ERR_INPUT;
+
+    if ((ret = rtl8367c_setAsicAcl(rtk_switch_port_L2P_get(port), state)) != RT_ERR_OK)
+        return ret;
+
+    return RT_ERR_OK;
+}
+
+int32_t rtl8367::rtk_filter_igrAcl_field_sel_set(uint32_t index, rtk_field_sel_t format, uint32_t offset)
+{
+    int32_t ret;
+
+    if (index >= RTL8367C_FIELDSEL_FORMAT_NUMBER)
+        return RT_ERR_OUT_OF_RANGE;
+
+    if (format >= FORMAT_END)
+        return RT_ERR_OUT_OF_RANGE;
+
+    if (offset > RTL8367C_FIELDSEL_MAX_OFFSET)
+        return RT_ERR_OUT_OF_RANGE;
+
+    if ((ret = rtl8367c_setAsicFieldSelector(index, (uint32_t)format, offset)) != RT_ERR_OK)
+        return ret;
+
+    return RT_ERR_OK;
+}
+
+/* Function Name:
+ *      rtl8367c_setAsicAclIpRange
+ * Description:
+ *      Set ACL IP range check
+ * Input:
+ *      index       - ACL IP range check index(0~15)
+ *      type        - Range check type
+ *      upperIp     - IP range upper bound
+ *      lowerIp     - IP range lower bound
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK               - Success
+ *      RT_ERR_SMI              - SMI access error
+ *      RT_ERR_OUT_OF_RANGE     - Invalid ACL IP range check index(0~15)
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsicAclIpRange(uint32_t index, uint32_t type, uint32_t upperIp, uint32_t lowerIp)
+{
+    int32_t retVal;
+    uint32_t regData;
+    uint32_t ipData;
+
+    if (index > RTL8367C_ACLRANGEMAX)
+        return RT_ERR_OUT_OF_RANGE;
+
+    retVal = rtl8367c_setAsicRegBits(RTL8367C_REG_ACL_IP_RANGE_ENTRY0_CTRL4 + index * 5, RTL8367C_ACL_IP_RANGE_ENTRY0_CTRL4_MASK, type);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    ipData = upperIp;
+
+    regData = ipData & 0xFFFF;
+    retVal = rtl8367c_setAsicReg(RTL8367C_REG_ACL_IP_RANGE_ENTRY0_CTRL2 + index * 5, regData);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    regData = (ipData >> 16) & 0xFFFF;
+    retVal = rtl8367c_setAsicReg(RTL8367C_REG_ACL_IP_RANGE_ENTRY0_CTRL3 + index * 5, regData);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    ipData = lowerIp;
+
+    regData = ipData & 0xFFFF;
+    retVal = rtl8367c_setAsicReg(RTL8367C_REG_ACL_IP_RANGE_ENTRY0_CTRL0 + index * 5, regData);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    regData = (ipData >> 16) & 0xFFFF;
+    retVal = rtl8367c_setAsicReg(RTL8367C_REG_ACL_IP_RANGE_ENTRY0_CTRL1 + index * 5, regData);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    return RT_ERR_OK;
+}
+int32_t rtl8367::rtk_filter_iprange_set(uint32_t index, rtk_filter_iprange_t type, uint32_t upperIp, uint32_t lowerIp)
+{
+    int32_t ret;
+
+    if (index > RTL8367C_ACLRANGEMAX)
+        return RT_ERR_OUT_OF_RANGE;
+
+    if (type >= IPRANGE_END)
+        return RT_ERR_OUT_OF_RANGE;
+
+    if (lowerIp > upperIp)
+        return RT_ERR_INPUT;
+
+    if ((ret = rtl8367c_setAsicAclIpRange(index, type, upperIp, lowerIp)) != RT_ERR_OK)
+        return ret;
+
+    return RT_ERR_OK;
+}
+
+/* Function Name:
+ *      rtl8367c_setAsicAclVidRange
+ * Description:
+ *      Set ACL VID range check
+ * Input:
+ *      index       - ACL VID range check index(0~15)
+ *      type        - Range check type
+ *      upperVid    - VID range upper bound
+ *      lowerVid    - VID range lower bound
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK               - Success
+ *      RT_ERR_SMI              - SMI access error
+ *      RT_ERR_OUT_OF_RANGE     - Invalid ACL  VID range check index(0~15)
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsicAclVidRange(uint32_t index, uint32_t type, uint32_t upperVid, uint32_t lowerVid)
+{
+    int32_t retVal;
+    uint32_t regData;
+
+    if (index > RTL8367C_ACLRANGEMAX)
+        return RT_ERR_OUT_OF_RANGE;
+
+    regData = ((type << RTL8367C_ACL_VID_RANGE_ENTRY0_CTRL1_CHECK0_TYPE_OFFSET) & RTL8367C_ACL_VID_RANGE_ENTRY0_CTRL1_CHECK0_TYPE_MASK) |
+              (upperVid & RTL8367C_ACL_VID_RANGE_ENTRY0_CTRL1_CHECK0_HIGH_MASK);
+
+    retVal = rtl8367c_setAsicReg(RTL8367C_REG_ACL_VID_RANGE_ENTRY0_CTRL1 + index * 2, regData);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    retVal = rtl8367c_setAsicReg(RTL8367C_REG_ACL_VID_RANGE_ENTRY0_CTRL0 + index * 2, lowerVid);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    return RT_ERR_OK;
+}
+
+int32_t rtl8367::rtk_filter_vidrange_set(uint32_t index, rtk_filter_vidrange_t type, uint32_t upperVid, uint32_t lowerVid)
+{
+    int32_t ret;
+
+    if (index > RTL8367C_ACLRANGEMAX)
+        return RT_ERR_OUT_OF_RANGE;
+
+    if (type >= VIDRANGE_END)
+        return RT_ERR_OUT_OF_RANGE;
+
+    if (lowerVid > upperVid)
+        return RT_ERR_INPUT;
+
+    if ((upperVid > RTL8367C_VIDMAX) || (lowerVid > RTL8367C_VIDMAX))
+        return RT_ERR_OUT_OF_RANGE;
+
+    if ((ret = rtl8367c_setAsicAclVidRange(index, type, upperVid, lowerVid)) != RT_ERR_OK)
+        return ret;
+
+    return RT_ERR_OK;
+}
+
+/* Function Name:
+ *      rtl8367c_setAsicAclPortRange
+ * Description:
+ *      Set ACL TCP/UDP range check
+ * Input:
+ *      index       - TCP/UDP port range check table index
+ *      type        - Range check type
+ *      upperPort   - TCP/UDP port range upper bound
+ *      lowerPort   - TCP/UDP port range lower bound
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK               - Success
+ *      RT_ERR_SMI              - SMI access error
+ *      RT_ERR_OUT_OF_RANGE     - Invalid TCP/UDP port range check table index
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsicAclPortRange(uint32_t index, uint32_t type, uint32_t upperPort, uint32_t lowerPort)
+{
+    int32_t retVal;
+
+    if (index > RTL8367C_ACLRANGEMAX)
+        return RT_ERR_OUT_OF_RANGE;
+
+    retVal = rtl8367c_setAsicRegBits(RTL8367C_REG_ACL_SDPORT_RANGE_ENTRY0_CTRL2 + index * 3, RTL8367C_ACL_SDPORT_RANGE_ENTRY0_CTRL2_MASK, type);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    retVal = rtl8367c_setAsicReg(RTL8367C_REG_ACL_SDPORT_RANGE_ENTRY0_CTRL1 + index * 3, upperPort);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    retVal = rtl8367c_setAsicReg(RTL8367C_REG_ACL_SDPORT_RANGE_ENTRY0_CTRL0 + index * 3, lowerPort);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    return RT_ERR_OK;
+}
+
+int32_t rtl8367::rtk_filter_portrange_set(uint32_t index, rtk_filter_portrange_t type, uint32_t upperPort, uint32_t lowerPort)
+{
+    int32_t ret;
+
+    if (index > RTL8367C_ACLRANGEMAX)
+        return RT_ERR_OUT_OF_RANGE;
+
+    if (type >= PORTRANGE_END)
+        return RT_ERR_OUT_OF_RANGE;
+
+    if (lowerPort > upperPort)
+        return RT_ERR_INPUT;
+
+    if (upperPort > RTL8367C_ACL_PORTRANGEMAX)
+        return RT_ERR_INPUT;
+
+    if (lowerPort > RTL8367C_ACL_PORTRANGEMAX)
+        return RT_ERR_INPUT;
+
+    if ((ret = rtl8367c_setAsicAclPortRange(index, type, upperPort, lowerPort)) != RT_ERR_OK)
+        return ret;
+
+    return RT_ERR_OK;
+}
+
+// ------------------------- EEE ---------------------------------
+

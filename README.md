@@ -1,4 +1,4 @@
-# The library its on development, so its a huge mess, I will clear later.
+# The library its on development.
 
 To use this library, you will need to connect the sda and sck pins to the arduino, !important! you must mantain the rtl8367 eeprom for him to start, and after that you can use the library to configure the switch. !important! the rtl8367 series is 3.3v! so you will need to use a logic level converter to use it with the arduino if you are using a 5v arduino.
 
@@ -99,6 +99,11 @@ This library is based on the realteck original library, theres a programming gui
 - [x] rtk_filter_igrAcl_cfg_del
 - [x] rtk_filter_igrAcl_cfg_delAll
 - [x] rtk_filter_igrAcl_cfg_get
+- [x] rtk_filter_igrAcl_state_set
+- [x] rtk_filter_igrAcl_field_sel_set
+- [x] rtk_filter_iprange_set
+- [x] rtk_filter_vidrange_set
+- [x] rtk_filter_portrange_set
 
 # tested on:
 

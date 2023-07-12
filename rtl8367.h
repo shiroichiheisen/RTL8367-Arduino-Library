@@ -10,182 +10,100 @@ class rtl8367
 {
 public:
     rtl8367(uint16_t);
-
     void setTransmissionPins(uint8_t, uint8_t);
     void setTransmissionDelay(uint16_t);
-
     int32_t rtk_switch_probe(uint8_t &);
-
     int32_t rtk_port_phyStatus_get(uint8_t, uint8_t &, uint8_t &, uint8_t &);
-
     int32_t rtk_vlan_init();
-
     int32_t rtk_vlan_portPvid_set(rtk_port_t, uint32_t, uint32_t);
     int32_t rtk_vlan_portPvid_get(rtk_port_t, uint32_t *, uint32_t *);
-
     int32_t rtk_vlan_portIgrFilterEnable_set(rtk_port_t, rtk_enable_t);
-
     int32_t rtk_vlan_portAcceptFrameType_set(rtk_port_t, rtk_vlan_acceptFrameType_t);
-
     int32_t rtk_vlan_tagMode_set(rtk_port_t, rtl8367c_egtagmode);
-
     int32_t rtk_vlan_transparent_set(rtk_port_t, rtk_portmask_t *);
-
     int32_t rtk_svlan_init();
-
     int32_t rtk_svlan_servicePort_add(rtk_port_t);
-
     int32_t rtk_svlan_memberPortEntry_set(uint32_t, rtk_svlan_memberCfg_t *);
-
     int32_t rtk_svlan_defaultSvlan_set(rtk_port_t, uint32_t);
-
     int32_t rtk_svlan_c2s_add(uint32_t, rtk_port_t, uint32_t);
-
     int32_t rtk_svlan_sp2c_add(uint32_t, rtk_port_t, uint32_t);
-
     int32_t rtk_svlan_untag_action_set(rtk_svlan_untag_action_t, uint32_t);
-
     int32_t rtk_svlan_unmatch_action_set(rtk_svlan_unmatch_action_t, uint32_t);
-
     int32_t rtk_svlan_dmac_vidsel_set(rtk_port_t, rtk_enable_t);
-
     int32_t rtk_l2_addr_add(rtk_mac_t *, rtk_l2_ucastAddr_t *);
-
     int32_t rtk_l2_addr_del(rtk_mac_t *, rtk_l2_ucastAddr_t *);
-
     int32_t rtk_l2_addr_get(rtk_mac_t *, rtk_l2_ucastAddr_t *);
-
     int32_t rtk_l2_addr_next_get(rtk_l2_read_method_t, rtk_port_t, uint32_t *, rtk_l2_ucastAddr_t *);
-
     int32_t rtk_l2_mcastAddr_add(rtk_l2_mcastAddr_t *);
-
     int32_t rtk_l2_mcastAddr_del(rtk_l2_mcastAddr_t *);
-
     int32_t rtk_l2_mcastAddr_get(rtk_l2_mcastAddr_t *);
-
     int32_t rtk_l2_mcastAddr_next_get(uint32_t *, rtk_l2_mcastAddr_t *);
-
     int32_t rtk_l2_ipMcastAddr_add(rtk_l2_ipMcastAddr_t *);
-
     int32_t rtk_l2_ipMcastAddr_del(rtk_l2_ipMcastAddr_t *);
-
     int32_t rtk_l2_ipMcastAddr_get(rtk_l2_ipMcastAddr_t *);
-
     int32_t rtk_l2_ipMcastAddr_next_get(uint32_t *, rtk_l2_ipMcastAddr_t *);
-
     int32_t rtk_l2_ipVidMcastAddr_add(rtk_l2_ipVidMcastAddr_t *);
-
     int32_t rtk_l2_ipVidMcastAddr_del(rtk_l2_ipVidMcastAddr_t *);
-
     int32_t rtk_l2_ipVidMcastAddr_get(rtk_l2_ipVidMcastAddr_t *);
-
     int32_t rtk_l2_ipVidMcastAddr_next_get(uint32_t *, rtk_l2_ipVidMcastAddr_t *);
-
     int32_t rtk_qos_init(uint32_t);
-
     int32_t rtk_qos_portPri_set(rtk_port_t, uint32_t);
-
     int32_t rtl8367c_setAsicFlowControlSelect(uint32_t);
-
     int32_t rtk_qos_1pPriRemap_set(uint32_t, uint32_t);
-
     int32_t rtk_qos_priSel_set(rtk_qos_priDecTbl_t, rtk_priority_select_t *);
-
     int32_t rtk_qos_portPriSelIndex_set(rtk_port_t, rtk_qos_priDecTbl_t);
-
     int32_t rtk_qos_priMap_set(uint32_t, rtk_qos_pri2queue_t *);
-
     int32_t rtk_qos_schedulingQueue_set(rtk_port_t, rtk_qos_queue_weights_t *);
-
     int32_t rtk_cpu_enable_set(rtk_enable_t);
-
     int32_t rtk_cpu_tagPort_set(rtk_port_t, rtk_cpu_insert_t);
-
     int32_t rtk_cpu_tagPort_get(rtk_port_t *, rtk_cpu_insert_t *);
-
     int32_t rtk_int_polarity_set(rtk_int_polarity_t);
-
     int32_t rtk_int_polarity_get(rtk_int_polarity_t *);
-
     int32_t rtk_int_control_set(rtk_int_type_t, rtk_enable_t);
-
     int32_t rtk_int_control_get(rtk_int_type_t, rtk_enable_t *);
-
     int32_t rtk_int_status_get(rtk_int_status_t *);
-
     int32_t rtk_int_status_set(rtk_int_status_t *);
-
     int32_t rtk_int_advanceInfo_get(rtk_int_advType_t, rtk_int_info_t *);
-
     int32_t rtk_stat_port_get(rtk_port_t, rtk_stat_port_type_t, uint64_t *);
-
     int32_t rtk_stat_port_reset(rtk_port_t);
-
     int32_t rtk_port_phyEnableAll_set(rtk_enable_t);
-
     int32_t rtk_port_phyAutoNegoAbility_set(rtk_port_t, rtk_port_phy_ability_t *);
-
     int32_t rtk_port_phyAutoNegoAbility_get(rtk_port_t, rtk_port_phy_ability_t *);
-
     int32_t rtk_vlan_set(uint32_t, rtk_vlan_cfg_t *);
-
     int32_t rtk_vlan_get(uint32_t, rtk_vlan_cfg_t *);
-
     int32_t rtk_led_enable_set(rtk_led_group_t, rtk_portmask_t *);
-
     int32_t rtk_led_operation_set(rtk_led_operation_t mode);
-
     int32_t rtk_led_blinkRate_set(rtk_led_blink_rate_t blinkRate);
-
     int32_t rtk_led_groupConfig_set(rtk_led_group_t group, rtk_led_congig_t config);
-
     int32_t rtk_trap_rmaAction_set(rtk_trap_type_t type, rtk_trap_rma_action_t rma_action);
-
     int32_t rtk_trap_rmaAction_get(rtk_trap_type_t type, rtk_trap_rma_action_t *pRma_action);
-
     int32_t rtk_rate_stormControlPortEnable_set(rtk_port_t port, rtk_rate_storm_group_t stormType, rtk_enable_t enable);
-
     int32_t rtk_rate_stormControlPortEnable_get(rtk_port_t port, rtk_rate_storm_group_t stormType, rtk_enable_t *pEnable);
-
     int32_t rtk_rate_stormControlMeterIdx_set(rtk_port_t port, rtk_rate_storm_group_t stormType, uint32_t index);
-
     int32_t rtk_rate_stormControlMeterIdx_get(rtk_port_t port, rtk_rate_storm_group_t stormType, uint32_t *pIndex);
-
     int32_t rtk_mirror_portBased_set(rtk_port_t mirroring_port, rtk_portmask_t *pMirrored_rx_portmask, rtk_portmask_t *pMirrored_tx_portmask);
-
     int32_t rtk_port_macForceLinkExt_set(rtk_port_t port, rtk_mode_ext_t mode, rtk_port_mac_ability_t *pPortability);
-
     int32_t rtk_port_macForceLinkExt_get(rtk_port_t port, rtk_mode_ext_t *pMode, rtk_port_mac_ability_t *pPortability);
-
     int32_t rtk_port_rgmiiDelayExt_set(rtk_port_t port, uint32_t txDelay, uint32_t rxDelay);
-
     int32_t rtk_port_rgmiiDelayExt_get(rtk_port_t port, uint32_t *pTxDelay, uint32_t *pRxDelay);
-
     int32_t rtk_port_isolation_set(rtk_port_t port, rtk_portmask_t *pPortmask);
-
     int32_t rtk_port_isolation_get(rtk_port_t port, rtk_portmask_t *pPortmask);
-
     int32_t rtk_l2_limitLearningCnt_set(rtk_port_t port, uint32_t mac_cnt);
-
     int32_t rtk_l2_limitLearningCnt_get(rtk_port_t port, uint32_t *pMac_cnt);
-
     int32_t rtk_l2_learningCnt_get(rtk_port_t port, uint32_t *pMac_cnt);
-
     int32_t rtk_filter_igrAcl_init();
-
     int32_t rtk_filter_igrAcl_template_set(rtk_filter_template_t *aclTemplate);
-
     int32_t rtk_filter_igrAcl_template_get(rtk_filter_template_t *aclTemplate);
-
     int32_t rtk_filter_igrAcl_field_add(rtk_filter_cfg_t *pFilter_cfg, rtk_filter_field_t *pFilter_field);
-
     int32_t rtk_filter_igrAcl_cfg_add(rtk_filter_id_t filter_id, rtk_filter_cfg_t *pFilter_cfg, rtk_filter_action_t *pFilter_action, uint32_t *ruleNum);
-
     int32_t rtk_filter_igrAcl_cfg_del(rtk_filter_id_t filter_id);
-
     int32_t rtk_filter_igrAcl_cfg_delAll();
-
     int32_t rtk_filter_igrAcl_cfg_get(rtk_filter_id_t filter_id, rtk_filter_cfg_raw_t *pFilter_cfg, rtk_filter_action_t *pAction);
+    int32_t rtk_filter_igrAcl_state_set(rtk_port_t port, rtk_filter_state_t state);
+    int32_t rtk_filter_igrAcl_field_sel_set(uint32_t index, rtk_field_sel_t format, uint32_t offset);
+    int32_t rtk_filter_iprange_set(uint32_t index, rtk_filter_iprange_t type, uint32_t upperIp, uint32_t lowerIp);
+    int32_t rtk_filter_vidrange_set(uint32_t index, rtk_filter_vidrange_t type, uint32_t upperVid, uint32_t lowerVid);
+    int32_t rtk_filter_portrange_set(uint32_t index, rtk_filter_portrange_t type, uint32_t upperPort, uint32_t lowerPort);
 
 private:
     uint32_t vlan_mbrCfgVid[RTL8367C_CVIDXNO];
@@ -491,6 +409,9 @@ private:
     int32_t rtl8367c_getAsicAclAct(uint32_t index, rtl8367c_acl_act_t *pAclAct);
     void _rtl8367c_aclActStSmi2User(rtl8367c_acl_act_t *pAclUser, uint16_t *pAclSmi);
     int32_t rtl8367c_getAsicAclActCtrl(uint32_t index, uint32_t *pAclActCtrl);
+    int32_t rtl8367c_setAsicAclIpRange(uint32_t index, uint32_t type, uint32_t upperIp, uint32_t lowerIp);
+    int32_t rtl8367c_setAsicAclVidRange(uint32_t index, uint32_t type, uint32_t upperVid, uint32_t lowerVid);
+    int32_t rtl8367c_setAsicAclPortRange(uint32_t index, uint32_t type, uint32_t upperPort, uint32_t lowerPort);
 
     const uint8_t filter_templateField[RTL8367C_ACLTEMPLATENO][RTL8367C_ACLRULEFIELDNO] = {
         {ACL_DMAC0, ACL_DMAC1, ACL_DMAC2, ACL_SMAC0, ACL_SMAC1, ACL_SMAC2, ACL_ETHERTYPE, ACL_FIELD_SELECT15},
