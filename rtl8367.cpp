@@ -4567,3 +4567,914 @@ int32_t rtl8367::rtk_qos_portPri_set(rtk_port_t port, uint32_t int_pri)
 
     return RT_ERR_OK;
 }
+
+int32_t rtl8367::rtk_qos_1pPriRemap_set(uint32_t dot1p_pri, uint32_t int_pri)
+{
+    int32_t retVal;
+
+    if (dot1p_pri > RTL8367C_PRIMAX || int_pri > RTL8367C_PRIMAX)
+        return RT_ERR_VLAN_PRIORITY;
+
+    if ((retVal = rtl8367c_setAsicPriorityDot1qRemapping(dot1p_pri, int_pri)) != RT_ERR_OK)
+        return retVal;
+
+    return RT_ERR_OK;
+}
+
+int32_t rtl8367::rtk_qos_priSel_set(rtk_qos_priDecTbl_t index, rtk_priority_select_t *pPriDec)
+{
+    int32_t retVal;
+    uint32_t port_pow;
+    uint32_t dot1q_pow;
+    uint32_t dscp_pow;
+    uint32_t acl_pow;
+    uint32_t svlan_pow;
+    uint32_t cvlan_pow;
+    uint32_t smac_pow;
+    uint32_t dmac_pow;
+    uint32_t i;
+
+    if (index < 0 || index >= PRIDECTBL_END)
+        return RT_ERR_ENTRY_INDEX;
+
+    if (pPriDec->port_pri >= 8 || pPriDec->dot1q_pri >= 8 || pPriDec->acl_pri >= 8 || pPriDec->dscp_pri >= 8 ||
+        pPriDec->cvlan_pri >= 8 || pPriDec->svlan_pri >= 8 || pPriDec->dmac_pri >= 8 || pPriDec->smac_pri >= 8)
+        return RT_ERR_QOS_SEL_PRI_SOURCE;
+
+    port_pow = 1;
+    for (i = pPriDec->port_pri; i > 0; i--)
+        port_pow = (port_pow)*2;
+
+    dot1q_pow = 1;
+    for (i = pPriDec->dot1q_pri; i > 0; i--)
+        dot1q_pow = (dot1q_pow)*2;
+
+    acl_pow = 1;
+    for (i = pPriDec->acl_pri; i > 0; i--)
+        acl_pow = (acl_pow)*2;
+
+    dscp_pow = 1;
+    for (i = pPriDec->dscp_pri; i > 0; i--)
+        dscp_pow = (dscp_pow)*2;
+
+    svlan_pow = 1;
+    for (i = pPriDec->svlan_pri; i > 0; i--)
+        svlan_pow = (svlan_pow)*2;
+
+    cvlan_pow = 1;
+    for (i = pPriDec->cvlan_pri; i > 0; i--)
+        cvlan_pow = (cvlan_pow)*2;
+
+    dmac_pow = 1;
+    for (i = pPriDec->dmac_pri; i > 0; i--)
+        dmac_pow = (dmac_pow)*2;
+
+    smac_pow = 1;
+    for (i = pPriDec->smac_pri; i > 0; i--)
+        smac_pow = (smac_pow)*2;
+
+    if ((retVal = rtl8367c_setAsicPriorityDecision(index, PRIDEC_PORT, port_pow)) != RT_ERR_OK)
+        return retVal;
+
+    if ((retVal = rtl8367c_setAsicPriorityDecision(index, PRIDEC_ACL, acl_pow)) != RT_ERR_OK)
+        return retVal;
+
+    if ((retVal = rtl8367c_setAsicPriorityDecision(index, PRIDEC_DSCP, dscp_pow)) != RT_ERR_OK)
+        return retVal;
+
+    if ((retVal = rtl8367c_setAsicPriorityDecision(index, PRIDEC_1Q, dot1q_pow)) != RT_ERR_OK)
+        return retVal;
+
+    if ((retVal = rtl8367c_setAsicPriorityDecision(index, PRIDEC_1AD, svlan_pow)) != RT_ERR_OK)
+        return retVal;
+
+    if ((retVal = rtl8367c_setAsicPriorityDecision(index, PRIDEC_CVLAN, cvlan_pow)) != RT_ERR_OK)
+        return retVal;
+
+    if ((retVal = rtl8367c_setAsicPriorityDecision(index, PRIDEC_DA, dmac_pow)) != RT_ERR_OK)
+        return retVal;
+
+    if ((retVal = rtl8367c_setAsicPriorityDecision(index, PRIDEC_SA, smac_pow)) != RT_ERR_OK)
+        return retVal;
+
+    return RT_ERR_OK;
+}
+
+/* Function Name:
+ *      rtl8367c_setAsicPortPriorityDecisionIndex
+ * Description:
+ *      Set priority decision index for each port
+ * Input:
+ *      port     - Physical port number (0~7)
+ *      index     - Table index
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK             - Success
+ *      RT_ERR_SMI          - SMI access error
+ *      RT_ERR_PORT_ID      - Invalid port number
+ *      RT_ERR_QUEUE_NUM      - Invalid queue number
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsicPortPriorityDecisionIndex(uint32_t port, uint32_t index)
+{
+    if (port > RTL8367C_PORTIDMAX)
+        return RT_ERR_PORT_ID;
+
+    if (index >= PRIDEC_IDX_END)
+        return RT_ERR_ENTRY_INDEX;
+
+    return rtl8367c_setAsicRegBit(RTL8367C_QOS_INTERNAL_PRIORITY_DECISION_IDX_CTRL, port, index);
+}
+
+int32_t rtl8367::rtk_qos_portPriSelIndex_set(rtk_port_t port, rtk_qos_priDecTbl_t index)
+{
+    int32_t retVal;
+
+    /* Check Port Valid */
+    RTK_CHK_PORT_VALID(port);
+
+    if (index >= PRIDECTBL_END)
+        return RT_ERR_ENTRY_INDEX;
+
+    if ((retVal = rtl8367c_setAsicPortPriorityDecisionIndex(rtk_switch_port_L2P_get(port), index)) != RT_ERR_OK)
+        return retVal;
+
+    return RT_ERR_OK;
+}
+
+int32_t rtl8367::rtk_qos_priMap_set(uint32_t queue_num, rtk_qos_pri2queue_t *pPri2qid)
+{
+    int32_t retVal;
+    uint32_t pri;
+
+    if ((0 == queue_num) || (queue_num > RTK_MAX_NUM_OF_QUEUE))
+        return RT_ERR_QUEUE_NUM;
+
+    for (pri = 0; pri <= RTK_PRIMAX; pri++)
+    {
+        if (pPri2qid->pri2queue[pri] > RTK_QIDMAX)
+            return RT_ERR_QUEUE_ID;
+
+        if ((retVal = rtl8367c_setAsicPriorityToQIDMappingTable(queue_num - 1, pri, pPri2qid->pri2queue[pri])) != RT_ERR_OK)
+            return retVal;
+    }
+
+    return RT_ERR_OK;
+}
+
+/* Function Name:
+ *      rtl8367c_setAsicQueueType
+ * Description:
+ *      Set type of a queue
+ * Input:
+ *      port        - Physical port number (0~10)
+ *      qid         - The queue ID wanted to set
+ *      queueType   - The specified queue type. 0b0: Strict priority, 0b1: WFQ
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK       - Success
+ *      RT_ERR_SMI      - SMI access error
+ *      RT_ERR_PORT_ID  - Invalid port number
+ *      RT_ERR_QUEUE_ID - Invalid queue id
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsicQueueType(uint32_t port, uint32_t qid, uint32_t queueType)
+{
+    int32_t retVal;
+
+    /* Invalid input parameter */
+    if (port > RTL8367C_PORTIDMAX)
+        return RT_ERR_PORT_ID;
+
+    if (qid > RTL8367C_QIDMAX)
+        return RT_ERR_QUEUE_ID;
+
+    /* Set Related Registers */
+    retVal = rtl8367c_setAsicRegBit(RTL8367C_SCHEDULE_QUEUE_TYPE_REG(port), RTL8367C_SCHEDULE_QUEUE_TYPE_OFFSET(port, qid), queueType);
+
+    return retVal;
+}
+
+/* Function Name:
+ *      rtl8367c_setAsicWFQWeight
+ * Description:
+ *      Set weight  of a queue
+ * Input:
+ *      port    - Physical port number (0~10)
+ *      qid     - The queue ID wanted to set
+ *      qWeight - The weight value wanted to set (valid:0~127)
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK               - Success
+ *      RT_ERR_SMI              - SMI access error
+ *      RT_ERR_PORT_ID          - Invalid port number
+ *      RT_ERR_QUEUE_ID         - Invalid queue id
+ *      RT_ERR_QOS_QUEUE_WEIGHT - Invalid queue weight
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsicWFQWeight(uint32_t port, uint32_t qid, uint32_t qWeight)
+{
+    int32_t retVal;
+
+    /* Invalid input parameter */
+    if (port > RTL8367C_PORTIDMAX)
+        return RT_ERR_PORT_ID;
+
+    if (qid > RTL8367C_QIDMAX)
+        return RT_ERR_QUEUE_ID;
+
+    if (qWeight > RTL8367C_QWEIGHTMAX && qid > 0)
+        return RT_ERR_QOS_QUEUE_WEIGHT;
+
+    retVal = rtl8367c_setAsicReg(RTL8367C_SCHEDULE_PORT_QUEUE_WFQ_WEIGHT_REG(port, qid), qWeight);
+
+    return retVal;
+}
+int32_t rtl8367::rtk_qos_schedulingQueue_set(rtk_port_t port, rtk_qos_queue_weights_t *pQweights)
+{
+    int32_t retVal;
+    uint32_t qid;
+
+    /* Check Port Valid */
+    RTK_CHK_PORT_VALID(port);
+
+    for (qid = 0; qid < RTL8367C_QUEUENO; qid++)
+    {
+
+        if (pQweights->weights[qid] > QOS_WEIGHT_MAX)
+            return RT_ERR_QOS_QUEUE_WEIGHT;
+
+        if (0 == pQweights->weights[qid])
+        {
+            if ((retVal = rtl8367c_setAsicQueueType(rtk_switch_port_L2P_get(port), qid, QTYPE_STRICT)) != RT_ERR_OK)
+                return retVal;
+        }
+        else
+        {
+            if ((retVal = rtl8367c_setAsicQueueType(rtk_switch_port_L2P_get(port), qid, QTYPE_WFQ)) != RT_ERR_OK)
+                return retVal;
+
+            if ((retVal = rtl8367c_setAsicWFQWeight(rtk_switch_port_L2P_get(port), qid, pQweights->weights[qid])) != RT_ERR_OK)
+                return retVal;
+        }
+    }
+
+    return RT_ERR_OK;
+}
+
+// ----------------- CPU -----------------
+
+/* Function Name:
+ *      rtl8367c_setAsicCputagEnable
+ * Description:
+ *      Set cpu tag function enable/disable
+ * Input:
+ *      enabled - 1: enabled, 0: disabled
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK       - Success
+ *      RT_ERR_SMI      - SMI access error
+ *      RT_ERR_ENABLE   - Invalid enable/disable input
+ * Note:
+ *      If CPU tag function is disabled, CPU tag will not be added to frame
+ *      forwarded to CPU port, and all ports cannot parse CPU tag.
+ */
+int32_t rtl8367::rtl8367c_setAsicCputagEnable(uint32_t enabled)
+{
+    if (enabled > 1)
+        return RT_ERR_ENABLE;
+
+    return rtl8367c_setAsicRegBit(RTL8367C_REG_CPU_CTRL, RTL8367C_CPU_EN_OFFSET, enabled);
+}
+
+/* Function Name:
+ *      rtl8367c_setAsicCputagPortmask
+ * Description:
+ *      Set ports that can parse CPU tag
+ * Input:
+ *      portmask - port mask
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK           - Success
+ *      RT_ERR_SMI          - SMI access error
+ *      RT_ERR_PORT_MASK    - Invalid portmask
+ * Note:
+ *     None
+ */
+int32_t rtl8367::rtl8367c_setAsicCputagPortmask(uint32_t portmask)
+{
+    if (portmask > RTL8367C_PORTMASK)
+        return RT_ERR_PORT_MASK;
+
+    return rtl8367c_setAsicReg(RTL8367C_CPU_PORT_MASK_REG, portmask);
+}
+
+int32_t rtl8367::rtk_cpu_enable_set(rtk_enable_t enable)
+{
+    int32_t retVal;
+
+    if (enable >= RTK_ENABLE_END)
+        return RT_ERR_ENABLE;
+
+    if ((retVal = rtl8367c_setAsicCputagEnable(enable)) != RT_ERR_OK)
+        return retVal;
+
+    if (DISABLED == enable)
+    {
+        if ((retVal = rtl8367c_setAsicCputagPortmask(0)) != RT_ERR_OK)
+            return retVal;
+    }
+
+    return RT_ERR_OK;
+}
+
+/* Function Name:
+ *      rtl8367c_setAsicCputagTrapPort
+ * Description:
+ *      Set cpu tag trap port
+ * Input:
+ *      port - port number
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK       - Success
+ *      RT_ERR_SMI      - SMI access error
+ *      RT_ERR_PORT_ID  - Invalid port number
+ * Note:
+ *     API can set destination port of trapping frame
+ */
+int32_t rtl8367::rtl8367c_setAsicCputagTrapPort(uint32_t port)
+{
+    int32_t retVal;
+
+    if (port >= RTL8367C_PORTNO)
+        return RT_ERR_PORT_ID;
+
+    retVal = rtl8367c_setAsicRegBits(RTL8367C_REG_CPU_CTRL, RTL8367C_CPU_TRAP_PORT_MASK, port & 7);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    retVal = rtl8367c_setAsicRegBits(RTL8367C_REG_CPU_CTRL, RTL8367C_CPU_TRAP_PORT_EXT_MASK, (port >> 3) & 1);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    return RT_ERR_OK;
+}
+
+/* Function Name:
+ *      rtl8367c_setAsicCputagInsertMode
+ * Description:
+ *      Set CPU-tag insert mode
+ * Input:
+ *      mode - 0: insert to all packets; 1: insert to trapped packets; 2: don't insert
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK           - Success
+ *      RT_ERR_SMI          - SMI access error
+ *      RT_ERR_NOT_ALLOWED  - Actions not allowed by the function
+ * Note:
+ *     None
+ */
+int32_t rtl8367::rtl8367c_setAsicCputagInsertMode(uint32_t mode)
+{
+    if (mode >= CPUTAG_INSERT_END)
+        return RT_ERR_NOT_ALLOWED;
+
+    return rtl8367c_setAsicRegBits(RTL8367C_REG_CPU_CTRL, RTL8367C_CPU_INSERTMODE_MASK, mode);
+}
+int32_t rtl8367::rtk_cpu_tagPort_set(rtk_port_t port, rtk_cpu_insert_t mode)
+{
+    int32_t retVal;
+
+    /* Check port Valid */
+    RTK_CHK_PORT_VALID(port);
+
+    if (mode >= CPU_INSERT_END)
+        return RT_ERR_INPUT;
+
+    if ((retVal = rtl8367c_setAsicCputagPortmask(1 << rtk_switch_port_L2P_get(port))) != RT_ERR_OK)
+        return retVal;
+
+    if ((retVal = rtl8367c_setAsicCputagTrapPort(rtk_switch_port_L2P_get(port))) != RT_ERR_OK)
+        return retVal;
+
+    if ((retVal = rtl8367c_setAsicCputagInsertMode(mode)) != RT_ERR_OK)
+        return retVal;
+
+    return RT_ERR_OK;
+}
+
+/* Function Name:
+ *      rtl8367c_getAsicCputagPortmask
+ * Description:
+ *      Get ports that can parse CPU tag
+ * Input:
+ *      pPortmask - port mask
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK           - Success
+ *      RT_ERR_SMI          - SMI access error
+ * Note:
+ *     None
+ */
+int32_t rtl8367::rtl8367c_getAsicCputagPortmask(uint32_t *pPortmask)
+{
+    return rtl8367c_getAsicReg(RTL8367C_CPU_PORT_MASK_REG, pPortmask);
+}
+/* Function Name:
+ *      rtl8367c_getAsicCputagTrapPort
+ * Description:
+ *      Get cpu tag trap port
+ * Input:
+ *      pPort - port number
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK       - Success
+ *      RT_ERR_SMI      - SMI access error
+ * Note:
+ *     None
+ */
+int32_t rtl8367::rtl8367c_getAsicCputagTrapPort(uint32_t *pPort)
+{
+    int32_t retVal;
+    uint32_t tmpPort;
+
+    retVal = rtl8367c_getAsicRegBits(RTL8367C_REG_CPU_CTRL, RTL8367C_CPU_TRAP_PORT_MASK, &tmpPort);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+    *pPort = tmpPort;
+
+    retVal = rtl8367c_getAsicRegBits(RTL8367C_REG_CPU_CTRL, RTL8367C_CPU_TRAP_PORT_EXT_MASK, &tmpPort);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+    *pPort |= (tmpPort & 1) << 3;
+
+    return RT_ERR_OK;
+}
+/* Function Name:
+ *      rtl8367c_getAsicCputagInsertMode
+ * Description:
+ *      Get CPU-tag insert mode
+ * Input:
+ *      pMode - 0: insert to all packets; 1: insert to trapped packets; 2: don't insert
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK           - Success
+ *      RT_ERR_SMI          - SMI access error
+ * Note:
+ *     None
+ */
+int32_t rtl8367::rtl8367c_getAsicCputagInsertMode(uint32_t *pMode)
+{
+    return rtl8367c_getAsicRegBits(RTL8367C_REG_CPU_CTRL, RTL8367C_CPU_INSERTMODE_MASK, pMode);
+}
+int32_t rtl8367::rtk_cpu_tagPort_get(rtk_port_t *pPort, rtk_cpu_insert_t *pMode)
+{
+    int32_t retVal;
+    uint32_t pmsk, port;
+
+    if (NULL == pPort)
+        return RT_ERR_NULL_POINTER;
+
+    if (NULL == pMode)
+        return RT_ERR_NULL_POINTER;
+
+    if ((retVal = rtl8367c_getAsicCputagPortmask(&pmsk)) != RT_ERR_OK)
+        return retVal;
+
+    if ((retVal = rtl8367c_getAsicCputagTrapPort(&port)) != RT_ERR_OK)
+        return retVal;
+
+    *pPort = (rtk_port_t)rtk_switch_port_P2L_get(port);
+
+    if ((retVal = rtl8367c_getAsicCputagInsertMode((uint32_t *)pMode)) != RT_ERR_OK)
+        return retVal;
+
+    return RT_ERR_OK;
+}
+
+// -------------- INTERRUPT --------------
+
+/* Function Name:
+ *      rtl8367c_setAsicInterruptPolarity
+ * Description:
+ *      Set interrupt trigger polarity
+ * Input:
+ *      polarity    - 0:pull high 1: pull low
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK   - Success
+ *      RT_ERR_SMI  - SMI access error
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsicInterruptPolarity(uint32_t polarity)
+{
+    return rtl8367c_setAsicRegBit(RTL8367C_REG_INTR_CTRL, RTL8367C_INTR_CTRL_OFFSET, polarity);
+}
+int32_t rtl8367::rtk_int_polarity_set(rtk_int_polarity_t type)
+{
+    int32_t retVal;
+
+    if (type >= INT_POLAR_END)
+        return RT_ERR_INPUT;
+
+    if ((retVal = rtl8367c_setAsicInterruptPolarity(type)) != RT_ERR_OK)
+        return retVal;
+
+    return RT_ERR_OK;
+}
+
+/* Function Name:
+ *      rtl8367c_getAsicInterruptPolarity
+ * Description:
+ *      Get interrupt trigger polarity
+ * Input:
+ *      pPolarity   - 0:pull high 1: pull low
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK   - Success
+ *      RT_ERR_SMI  - SMI access error
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_getAsicInterruptPolarity(uint32_t *pPolarity)
+{
+    return rtl8367c_getAsicRegBit(RTL8367C_REG_INTR_CTRL, RTL8367C_INTR_CTRL_OFFSET, pPolarity);
+}
+
+int32_t rtl8367::rtk_int_polarity_get(rtk_int_polarity_t *pType)
+{
+    int32_t retVal;
+
+    if (NULL == pType)
+        return RT_ERR_NULL_POINTER;
+
+    if ((retVal = rtl8367c_getAsicInterruptPolarity((uint32_t *)pType)) != RT_ERR_OK)
+        return retVal;
+
+    return RT_ERR_OK;
+}
+
+/* Function Name:
+ *      rtl8367c_getAsicInterruptMask
+ * Description:
+ *      Get interrupt enable mask
+ * Input:
+ *      pImr    - Interrupt mask
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK   - Success
+ *      RT_ERR_SMI  - SMI access error
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_getAsicInterruptMask(uint32_t *pImr)
+{
+    return rtl8367c_getAsicReg(RTL8367C_REG_INTR_IMR, pImr);
+}
+/* Function Name:
+ *      rtl8367c_setAsicInterruptMask
+ * Description:
+ *      Set interrupt enable mask
+ * Input:
+ *      imr     - Interrupt mask
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK   - Success
+ *      RT_ERR_SMI  - SMI access error
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsicInterruptMask(uint32_t imr)
+{
+    return rtl8367c_setAsicReg(RTL8367C_REG_INTR_IMR, imr);
+}
+int32_t rtl8367::rtk_int_control_set(rtk_int_type_t type, rtk_enable_t enable)
+{
+    int32_t retVal;
+    uint32_t mask;
+
+    if (type >= INT_TYPE_END)
+        return RT_ERR_INPUT;
+
+    if (type == INT_TYPE_RESERVED)
+        return RT_ERR_INPUT;
+
+    if ((retVal = rtl8367c_getAsicInterruptMask(&mask)) != RT_ERR_OK)
+        return retVal;
+
+    if (ENABLED == enable)
+        mask = mask | (1 << type);
+    else if (DISABLED == enable)
+        mask = mask & ~(1 << type);
+    else
+        return RT_ERR_INPUT;
+
+    if ((retVal = rtl8367c_setAsicInterruptMask(mask)) != RT_ERR_OK)
+        return retVal;
+
+    return RT_ERR_OK;
+}
+
+int32_t rtl8367::rtk_int_control_get(rtk_int_type_t type, rtk_enable_t *pEnable)
+{
+    int32_t retVal;
+    uint32_t mask;
+
+    if (NULL == pEnable)
+        return RT_ERR_NULL_POINTER;
+
+    if ((retVal = rtl8367c_getAsicInterruptMask(&mask)) != RT_ERR_OK)
+        return retVal;
+
+    if (0 == (mask & (1 << type)))
+        *pEnable = (rtk_enable_t)0;
+    else
+        *pEnable = (rtk_enable_t)1;
+
+    return RT_ERR_OK;
+}
+
+/* Function Name:
+ *      rtl8367c_getAsicInterruptStatus
+ * Description:
+ *      Get interrupt enable mask
+ * Input:
+ *      pIms    - Interrupt status mask
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK   - Success
+ *      RT_ERR_SMI  - SMI access error
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_getAsicInterruptStatus(uint32_t *pIms)
+{
+    return rtl8367c_getAsicReg(RTL8367C_REG_INTR_IMS, pIms);
+}
+
+int32_t rtl8367::rtk_int_status_get(rtk_int_status_t *pStatusMask)
+{
+    int32_t retVal;
+    uint32_t ims_mask;
+
+    if (NULL == pStatusMask)
+        return RT_ERR_NULL_POINTER;
+
+    if ((retVal = rtl8367c_getAsicInterruptStatus(&ims_mask)) != RT_ERR_OK)
+        return retVal;
+
+    pStatusMask->value[0] = (ims_mask & 0x00000FFF);
+    return RT_ERR_OK;
+}
+
+/* Function Name:
+ *      rtl8367c_setAsicInterruptMask
+ * Description:
+ *      Clear interrupt enable mask
+ * Input:
+ *      ims     - Interrupt status mask
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK   - Success
+ *      RT_ERR_SMI  - SMI access error
+ * Note:
+ *      This API can be used to clear ASIC interrupt status and register will be cleared by writting 1.
+ *      [0]:Link change,
+ *      [1]:Share meter exceed,
+ *      [2]:Learn number overed,
+ *      [3]:Speed Change,
+ *      [4]:Tx special congestion
+ *      [5]:1 second green feature
+ *      [6]:loop detection
+ *      [7]:interrupt from 8051
+ *      [8]:Cable diagnostic finish
+ *      [9]:ACL action interrupt trigger
+ *      [11]: Silent Start
+ */
+int32_t rtl8367::rtl8367c_setAsicInterruptStatus(uint32_t ims)
+{
+    return rtl8367c_setAsicReg(RTL8367C_REG_INTR_IMS, ims);
+}
+int32_t rtl8367::rtk_int_status_set(rtk_int_status_t *pStatusMask)
+{
+    int32_t retVal;
+
+    if (NULL == pStatusMask)
+        return RT_ERR_NULL_POINTER;
+
+    if (pStatusMask->value[0] & (0x0001 << INT_TYPE_RESERVED))
+        return RT_ERR_INPUT;
+
+    if (pStatusMask->value[0] >= (0x0001 << INT_TYPE_END))
+        return RT_ERR_INPUT;
+
+    if ((retVal = rtl8367c_setAsicInterruptStatus((uint32_t)pStatusMask->value[0])) != RT_ERR_OK)
+        return retVal;
+
+    return RT_ERR_OK;
+}
+
+int32_t rtl8367::_rtk_int_Advidx_get(rtk_int_advType_t adv_type, uint32_t *pAsic_idx)
+{
+    uint32_t asic_idx[ADV_END] =
+        {
+            INTRST_L2_LEARN,
+            INTRST_SPEED_CHANGE,
+            INTRST_SPECIAL_CONGESTION,
+            INTRST_PORT_LINKDOWN,
+            INTRST_PORT_LINKUP,
+            ADV_NOT_SUPPORT,
+            INTRST_RLDP_LOOPED,
+            INTRST_RLDP_RELEASED,
+        };
+
+    if (adv_type >= ADV_END)
+        return RT_ERR_INPUT;
+
+    if (asic_idx[adv_type] == ADV_NOT_SUPPORT)
+        return RT_ERR_CHIP_NOT_SUPPORTED;
+
+    *pAsic_idx = asic_idx[adv_type];
+    return RT_ERR_OK;
+}
+
+/* Function Name:
+ *      rtl8367c_getAsicInterruptRelatedStatus
+ * Description:
+ *      Get interrupt status
+ * Input:
+ *      type    - per port Learn over, per-port speed change, per-port special congest, share meter exceed status
+ *      pStatus     - exceed status, write 1 to clear
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK           - Success
+ *      RT_ERR_SMI          - SMI access error
+ *      RT_ERR_OUT_OF_RANGE - input parameter out of range
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_getAsicInterruptRelatedStatus(uint32_t type, uint32_t *pStatus)
+{
+    const uint32_t indicatorAddress[INTRST_END] = {RTL8367C_REG_LEARN_OVER_INDICATOR,
+                                                   RTL8367C_REG_SPEED_CHANGE_INDICATOR,
+                                                   RTL8367C_REG_SPECIAL_CONGEST_INDICATOR,
+                                                   RTL8367C_REG_PORT_LINKDOWN_INDICATOR,
+                                                   RTL8367C_REG_PORT_LINKUP_INDICATOR,
+                                                   RTL8367C_REG_METER_OVERRATE_INDICATOR0,
+                                                   RTL8367C_REG_METER_OVERRATE_INDICATOR1,
+                                                   RTL8367C_REG_RLDP_LOOPED_INDICATOR,
+                                                   RTL8367C_REG_RLDP_RELEASED_INDICATOR,
+                                                   RTL8367C_REG_SYSTEM_LEARN_OVER_INDICATOR};
+
+    if (type >= INTRST_END)
+        return RT_ERR_OUT_OF_RANGE;
+
+    return rtl8367c_getAsicReg(indicatorAddress[type], pStatus);
+}
+/* Function Name:
+ *      rtl8367c_setAsicInterruptRelatedStatus
+ * Description:
+ *      Clear interrupt status
+ * Input:
+ *      type    - per port Learn over, per-port speed change, per-port special congest, share meter exceed status
+ *      status  - exceed status, write 1 to clear
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK           - Success
+ *      RT_ERR_SMI          - SMI access error
+ *      RT_ERR_OUT_OF_RANGE - input parameter out of range
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsicInterruptRelatedStatus(uint32_t type, uint32_t status)
+{
+    const uint32_t indicatorAddress[INTRST_END] = {RTL8367C_REG_LEARN_OVER_INDICATOR,
+                                                   RTL8367C_REG_SPEED_CHANGE_INDICATOR,
+                                                   RTL8367C_REG_SPECIAL_CONGEST_INDICATOR,
+                                                   RTL8367C_REG_PORT_LINKDOWN_INDICATOR,
+                                                   RTL8367C_REG_PORT_LINKUP_INDICATOR,
+                                                   RTL8367C_REG_METER_OVERRATE_INDICATOR0,
+                                                   RTL8367C_REG_METER_OVERRATE_INDICATOR1,
+                                                   RTL8367C_REG_RLDP_LOOPED_INDICATOR,
+                                                   RTL8367C_REG_RLDP_RELEASED_INDICATOR,
+                                                   RTL8367C_REG_SYSTEM_LEARN_OVER_INDICATOR};
+
+    if (type >= INTRST_END)
+        return RT_ERR_OUT_OF_RANGE;
+
+    return rtl8367c_setAsicReg(indicatorAddress[type], status);
+}
+int32_t rtl8367::rtk_int_advanceInfo_get(rtk_int_advType_t adv_type, rtk_int_info_t *pInfo)
+{
+    int32_t retVal;
+    uint32_t data;
+    uint32_t intAdvType;
+
+    if (adv_type >= ADV_END)
+        return RT_ERR_INPUT;
+
+    if (NULL == pInfo)
+        return RT_ERR_NULL_POINTER;
+
+    if (adv_type != ADV_METER_EXCEED_MASK)
+    {
+        if ((retVal = _rtk_int_Advidx_get(adv_type, &intAdvType)) != RT_ERR_OK)
+            return retVal;
+    }
+
+    switch (adv_type)
+    {
+    case ADV_L2_LEARN_PORT_MASK:
+        /* Get physical portmask */
+        if ((retVal = rtl8367c_getAsicInterruptRelatedStatus(intAdvType, &data)) != RT_ERR_OK)
+            return retVal;
+
+        /* Clear Advanced Info */
+        if ((retVal = rtl8367c_setAsicInterruptRelatedStatus(intAdvType, 0xFFFF)) != RT_ERR_OK)
+            return retVal;
+
+        /* Translate to logical portmask */
+        if ((retVal = rtk_switch_portmask_P2L_get(data, &(pInfo->portMask))) != RT_ERR_OK)
+            return retVal;
+
+        /* Get system learn */
+        if ((retVal = rtl8367c_getAsicInterruptRelatedStatus(INTRST_SYS_LEARN, &data)) != RT_ERR_OK)
+            return retVal;
+
+        /* Clear system learn */
+        if ((retVal = rtl8367c_setAsicInterruptRelatedStatus(INTRST_SYS_LEARN, 0x0001)) != RT_ERR_OK)
+            return retVal;
+
+        pInfo->systemLearnOver = data;
+        break;
+    case ADV_SPEED_CHANGE_PORT_MASK:
+    case ADV_SPECIAL_CONGESTION_PORT_MASK:
+    case ADV_PORT_LINKDOWN_PORT_MASK:
+    case ADV_PORT_LINKUP_PORT_MASK:
+    case ADV_RLDP_LOOPED:
+    case ADV_RLDP_RELEASED:
+        /* Get physical portmask */
+        if ((retVal = rtl8367c_getAsicInterruptRelatedStatus(intAdvType, &data)) != RT_ERR_OK)
+            return retVal;
+
+        /* Clear Advanced Info */
+        if ((retVal = rtl8367c_setAsicInterruptRelatedStatus(intAdvType, 0xFFFF)) != RT_ERR_OK)
+            return retVal;
+
+        /* Translate to logical portmask */
+        if ((retVal = rtk_switch_portmask_P2L_get(data, &(pInfo->portMask))) != RT_ERR_OK)
+            return retVal;
+
+        break;
+    case ADV_METER_EXCEED_MASK:
+        /* Get Meter Mask */
+        if ((retVal = rtl8367c_getAsicInterruptRelatedStatus(INTRST_METER0_15, &data)) != RT_ERR_OK)
+            return retVal;
+
+        /* Clear Advanced Info */
+        if ((retVal = rtl8367c_setAsicInterruptRelatedStatus(INTRST_METER0_15, 0xFFFF)) != RT_ERR_OK)
+            return retVal;
+
+        pInfo->meterMask = data & 0xFFFF;
+
+        /* Get Meter Mask */
+        if ((retVal = rtl8367c_getAsicInterruptRelatedStatus(INTRST_METER16_31, &data)) != RT_ERR_OK)
+            return retVal;
+
+        /* Clear Advanced Info */
+        if ((retVal = rtl8367c_setAsicInterruptRelatedStatus(INTRST_METER16_31, 0xFFFF)) != RT_ERR_OK)
+            return retVal;
+
+        pInfo->meterMask = pInfo->meterMask | ((data << 16) & 0xFFFF0000);
+
+        break;
+    default:
+        return RT_ERR_INPUT;
+    }
+
+    return RT_ERR_OK;
+}
+
+// ----------------------- MIB -----------------------

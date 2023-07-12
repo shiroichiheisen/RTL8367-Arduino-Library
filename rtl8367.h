@@ -158,6 +158,17 @@ typedef enum rtk_svlan_unmatch_action_e
 #define RTL8367C_LUT_ENTRY_SIZE (6)
 #define RTL8367C_LUT_BUSY_CHECK_NO (10)
 
+#define RTL8367C_C2SIDXNO 128
+#define RTL8367C_C2SIDXMAX (RTL8367C_C2SIDXNO - 1)
+#define RTL8367C_MC2SIDXNO 32
+#define RTL8367C_MC2SIDXMAX (RTL8367C_MC2SIDXNO - 1)
+#define RTL8367C_SP2CIDXNO 128
+#define RTL8367C_SP2CMAX (RTL8367C_SP2CIDXNO - 1)
+#define RTL8367C_SVLAN_MEMCONF_LEN 4
+#define RTL8367C_SVLAN_MC2S_LEN 5
+#define RTL8367C_SVLAN_SP2C_LEN 2
+#define RTK_MAX_NUM_OF_PROTO_TYPE 0xFFFF
+
 typedef struct rtk_mac_s
 {
     uint8_t octet[ETHER_ADDR_LEN];
@@ -275,16 +286,6 @@ typedef struct rtk_l2_ipVidMcastAddr_s
     uint32_t address;
 } rtk_l2_ipVidMcastAddr_t;
 
-/* l2 address table - ip VID multicast data structure */
-typedef struct rtk_l2_ipVidMcastAddr_s
-{
-    uint32_t dip;
-    uint32_t sip;
-    uint32_t vid;
-    rtk_portmask_t portmask;
-    uint32_t address;
-} rtk_l2_ipVidMcastAddr_t;
-
 enum FLOW_CONTROL_TYPE
 {
     FC_EGRESS = 0,
@@ -322,6 +323,120 @@ enum RTL8367C_PRIDEC_TABLE
 };
 
 #define RTL8367C_DECISIONPRIMAX 0xFF
+
+typedef struct rtk_priority_select_s
+{
+    uint32_t port_pri;
+    uint32_t dot1q_pri;
+    uint32_t acl_pri;
+    uint32_t dscp_pri;
+    uint32_t cvlan_pri;
+    uint32_t svlan_pri;
+    uint32_t dmac_pri;
+    uint32_t smac_pri;
+} rtk_priority_select_t;
+
+typedef struct rtk_qos_pri2queue_s
+{
+#define RTK_MAX_NUM_OF_PRIORITY 8
+#define RTK_MAX_NUM_OF_QUEUE 8
+
+    uint32_t pri2queue[RTK_MAX_NUM_OF_PRIORITY];
+} rtk_qos_pri2queue_t;
+
+typedef struct rtk_qos_queue_weights_s
+{
+    uint32_t weights[RTK_MAX_NUM_OF_QUEUE];
+} rtk_qos_queue_weights_t;
+
+/* enum for queue type */
+enum QUEUETYPE
+{
+    QTYPE_STRICT = 0,
+    QTYPE_WFQ,
+};
+
+typedef enum rtk_cpu_insert_e
+{
+    CPU_INSERT_TO_ALL = 0,
+    CPU_INSERT_TO_TRAPPING,
+    CPU_INSERT_TO_NONE,
+    CPU_INSERT_END
+} rtk_cpu_insert_t;
+
+enum CPUTAG_INSERT_MODE
+{
+    CPUTAG_INSERT_TO_ALL = 0,
+    CPUTAG_INSERT_TO_TRAPPING,
+    CPUTAG_INSERT_TO_NO,
+    CPUTAG_INSERT_END
+};
+
+typedef enum rtk_int_polarity_e
+{
+    INT_POLAR_HIGH = 0,
+    INT_POLAR_LOW,
+    INT_POLAR_END
+} rtk_int_polarity_t;
+
+typedef enum rtk_int_type_e
+{
+    INT_TYPE_LINK_STATUS = 0,
+    INT_TYPE_METER_EXCEED,
+    INT_TYPE_LEARN_LIMIT,
+    INT_TYPE_LINK_SPEED,
+    INT_TYPE_CONGEST,
+    INT_TYPE_GREEN_FEATURE,
+    INT_TYPE_LOOP_DETECT,
+    INT_TYPE_8051,
+    INT_TYPE_CABLE_DIAG,
+    INT_TYPE_ACL,
+    INT_TYPE_RESERVED, /* Unused */
+    INT_TYPE_SLIENT,
+    INT_TYPE_END
+} rtk_int_type_t;
+
+#define RTK_MAX_NUM_OF_INTERRUPT_TYPE 1
+#define ADV_NOT_SUPPORT (0xFFFF)
+typedef struct rtk_int_status_s
+{
+    uint16_t value[RTK_MAX_NUM_OF_INTERRUPT_TYPE];
+} rtk_int_status_t;
+
+typedef enum rtk_int_advType_e
+{
+    ADV_L2_LEARN_PORT_MASK = 0,
+    ADV_SPEED_CHANGE_PORT_MASK,
+    ADV_SPECIAL_CONGESTION_PORT_MASK,
+    ADV_PORT_LINKDOWN_PORT_MASK,
+    ADV_PORT_LINKUP_PORT_MASK,
+    ADV_METER_EXCEED_MASK,
+    ADV_RLDP_LOOPED,
+    ADV_RLDP_RELEASED,
+    ADV_END,
+} rtk_int_advType_t;
+
+typedef struct rtk_int_info_s
+{
+    rtk_portmask_t portMask;
+    uint32_t meterMask;
+    uint32_t systemLearnOver;
+} rtk_int_info_t;
+
+typedef enum RTL8367C_INTR_INDICATOR_E
+{
+    INTRST_L2_LEARN = 0,
+    INTRST_SPEED_CHANGE,
+    INTRST_SPECIAL_CONGESTION,
+    INTRST_PORT_LINKDOWN,
+    INTRST_PORT_LINKUP,
+    INTRST_METER0_15,
+    INTRST_METER16_31,
+    INTRST_RLDP_LOOPED,
+    INTRST_RLDP_RELEASED,
+    INTRST_SYS_LEARN,
+    INTRST_END,
+} RTL8367C_INTR_INDICATOR;
 
 class rtl8367
 {
@@ -403,6 +518,36 @@ public:
     int32_t rtk_qos_portPri_set(rtk_port_t port, uint32_t int_pri);
 
     int32_t rtl8367c_setAsicFlowControlSelect(uint32_t select);
+
+    int32_t rtk_qos_1pPriRemap_set(uint32_t dot1p_pri, uint32_t int_pri);
+
+    int32_t rtk_qos_priSel_set(rtk_qos_priDecTbl_t index, rtk_priority_select_t *pPriDec);
+
+    int32_t rtk_qos_portPriSelIndex_set(rtk_port_t port, rtk_qos_priDecTbl_t index);
+
+    int32_t rtk_qos_priMap_set(uint32_t queue_num, rtk_qos_pri2queue_t *pPri2qid);
+
+    int32_t rtk_qos_schedulingQueue_set(rtk_port_t port, rtk_qos_queue_weights_t *pQweights);
+
+    int32_t rtk_cpu_enable_set(rtk_enable_t enable);
+
+    int32_t rtk_cpu_tagPort_set(rtk_port_t port, rtk_cpu_insert_t mode);
+
+    int32_t rtk_cpu_tagPort_get(rtk_port_t *pPort, rtk_cpu_insert_t *pMode);
+
+    int32_t rtk_int_polarity_set(rtk_int_polarity_t type);
+
+    int32_t rtk_int_polarity_get(rtk_int_polarity_t *pType);
+
+    int32_t rtk_int_control_set(rtk_int_type_t type, rtk_enable_t enable);
+
+    int32_t rtk_int_control_get(rtk_int_type_t type, rtk_enable_t *pEnable);
+
+    int32_t rtk_int_status_get(rtk_int_status_t *pStatusMask);
+
+    int32_t rtk_int_status_set(rtk_int_status_t *pStatusMask);
+
+    int32_t rtk_int_advanceInfo_get(rtk_int_advType_t adv_type, rtk_int_info_t *pInfo);
     /* Function Name:
      *      rtk_switch_maxMeterId_get
      * Description:
@@ -471,6 +616,9 @@ private:
 #define RTL8367C_QOS_1Q_PRIORITY_TO_QID_REG(index, pri) (RTL8367C_QOS_1Q_PRIORITY_TO_QID_BASE + (index << 1) + (pri >> 2))
 #define RTL8367C_QOS_1Q_PRIORITY_TO_QID_OFFSET(pri) ((pri & 0x3) << 2)
 #define RTL8367C_QOS_1Q_PRIORITY_TO_QID_MASK(pri) (RTL8367C_QOS_1Q_PRIORITY_TO_QID_CTRL0_PRIORITY0_TO_QID_MASK << RTL8367C_QOS_1Q_PRIORITY_TO_QID_OFFSET(pri))
+#define QOS_WEIGHT_MAX 127
+#define RTL8367C_QWEIGHTMAX 0x7F
+#define RTL8367C_PORT_QUEUE_METER_INDEX_MAX 7
 
     /* Function Name:
      *      rtk_switch_maxLutAddrNumber_get
@@ -596,13 +744,6 @@ private:
 
 #define RTL8367C_PORTNO 11
 #define RTL8367C_PORTIDMAX (RTL8367C_PORTNO - 1)
-
-#define RTL8367C_VLAN_PVID_CTRL_BASE RTL8367C_REG_VLAN_PVID_CTRL0
-#define RTL8367C_VLAN_PVID_CTRL_REG(port) (RTL8367C_VLAN_PVID_CTRL_BASE + (port >> 1))
-#define RTL8367C_PORT_VIDX_OFFSET(port) ((port & 1) << 3)
-#define RTL8367C_PORT_VIDX_MASK(port) (RTL8367C_PORT0_VIDX_MASK << RTL8367C_PORT_VIDX_OFFSET(port))
-#define RTL8367C_VLAN_EGRESS_MDOE_MASK RTL8367C_PORT0_MISC_CFG_VLAN_EGRESS_MODE_MASK
-#define RTL8367C_VLAN_INGRESS_REG RTL8367C_REG_VLAN_INGRESS
 
 /* Port mask defination */
 #define RTK_PHY_PORTMASK_ALL (rtk_switch_phyPortMask_get())
@@ -811,20 +952,11 @@ private:
 #define RTL8367C_SVIDXNO 64
 #define RTL8367C_SVIDXMAX (RTL8367C_SVIDXNO - 1)
 #define RTL8367C_SVLAN_MEMCONF_LEN 4
-#define RTL8367C_SVLAN_MEMBERCFG_BASE_REG(index) (RTL8367C_REG_SVLAN_MEMBERCFG0_CTRL1 + index * 3)
 #define RTL8367C_C2SIDXNO 128
 #define RTL8367C_C2SIDXMAX (RTL8367C_C2SIDXNO - 1)
-#define RTL8367C_SVLAN_C2SCFG_BASE_REG(index) (RTL8367C_REG_SVLAN_C2SCFG0_CTRL0 + index * 3)
-#define RTL8367C_SP2CIDXNO 128
-#define RTL8367C_SP2CMAX (RTL8367C_SP2CIDXNO - 1)
 #define RTL8367C_MC2SIDXNO 32
 #define RTL8367C_MC2SIDXMAX (RTL8367C_MC2SIDXNO - 1)
 #define RTL8367C_SVLAN_SP2C_LEN 2
-#define RTL8367C_SVLAN_S2C_ENTRY_BASE_REG(index) (RTL8367C_REG_SVLAN_SP2C_ENTRY0_CTRL0 + index * 2)
-#define RTL8367C_SVLAN_MC2S_LEN 5
-#define RTL8367C_SVLAN_MCAST2S_ENTRY_BASE_REG(index) (RTL8367C_REG_SVLAN_MCAST2S_ENTRY0_CTRL0 + index * 5)
-#define RTK_MAX_NUM_OF_PROTO_TYPE 0xFFFF
-#define RTK_MAX_NUM_OF_MSTI 0xF
 #define RTK_FID_MAX 0xF
 #define RTL8367C_DSCPMAX 63
 
@@ -899,6 +1031,25 @@ private:
     int32_t rtl8367c_setAsicRemarkingDot1pParameter(uint32_t priority, uint32_t newPriority);
     int32_t rtl8367c_setAsicRemarkingDscpParameter(uint32_t priority, uint32_t newDscp);
     int32_t rtl8367c_setAsicPriorityDscpBased(uint32_t dscp, uint32_t priority);
+    int32_t rtl8367c_setAsicPortPriorityDecisionIndex(uint32_t port, uint32_t index);
+    int32_t rtl8367c_setAsicQueueType(uint32_t port, uint32_t qid, uint32_t queueType);
+    int32_t rtl8367c_setAsicWFQWeight(uint32_t port, uint32_t qid, uint32_t qWeight);
+    int32_t rtl8367c_setAsicCputagEnable(uint32_t enabled);
+    int32_t rtl8367c_setAsicCputagPortmask(uint32_t portmask);
+    int32_t rtl8367c_setAsicCputagTrapPort(uint32_t port);
+    int32_t rtl8367c_setAsicCputagInsertMode(uint32_t mode);
+    int32_t rtl8367c_getAsicCputagPortmask(uint32_t *pPortmask);
+    int32_t rtl8367c_getAsicCputagTrapPort(uint32_t *pPort);
+    int32_t rtl8367c_getAsicCputagInsertMode(uint32_t *pMode);
+    int32_t rtl8367c_setAsicInterruptPolarity(uint32_t polarity);
+    int32_t rtl8367c_getAsicInterruptPolarity(uint32_t *pPolarity);
+    int32_t rtl8367c_getAsicInterruptMask(uint32_t *pImr);
+    int32_t rtl8367c_setAsicInterruptMask(uint32_t imr);
+    int32_t rtl8367c_getAsicInterruptStatus(uint32_t *pIms);
+    int32_t rtl8367c_setAsicInterruptStatus(uint32_t ims);
+    int32_t _rtk_int_Advidx_get(rtk_int_advType_t adv_type, uint32_t *pAsic_idx);
+    int32_t rtl8367c_getAsicInterruptRelatedStatus(uint32_t type, uint32_t *pStatus);
+    int32_t rtl8367c_setAsicInterruptRelatedStatus(uint32_t type, uint32_t status);
     /* Function Name:
      *      rtk_switch_port_P2L_get
      * Description:

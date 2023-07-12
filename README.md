@@ -52,6 +52,21 @@ This library is based on the realteck original library, theres a programming gui
 - [x] rtk_l2_flushtype_set - Dont contain in api 1.3.11 or 1.3.12
 - [x] rtk_qos_init
 - [x] rtk_qos_portPri_set
+- [x] rtk_qos_1pPriRemap_set
+- [x] rtk_qos_priSel_set
+- [x] rtk_qos_portPriSelIndex_set   
+- [x] rtk_qos_priMap_set
+- [x] rtk_qos_schedulingQueue_set
+- [x] rtk_cpu_enable_set
+- [x] rtk_cpu_tagPort_set
+- [x] rtk_cpu_tagPort_get
+- [x] rtk_int_polarity_set
+- [x] rtk_int_polarity_get
+- [x] rtk_int_control_set
+- [x] rtk_int_control_get
+- [x] rtk_int_status_get
+- [x] rtk_int_status_set
+- [x] rtk_int_advanceInfo_get
 
 # tested on:
 
