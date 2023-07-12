@@ -221,6 +221,40 @@
 #define RTL8367C_MIB_LOG_CNT_OFFSET (0x3E0)
 #define RTL8367C_MIB_MAX_LOG_MODE_IDX (16 - 1)
 
+#define RTL8367C_PHY_EXTERNALMAX 0x7
+
+#define RTL8367C_PHY_EXT_BASE 0xA000
+
+#define RTL8367C_PHY_EXT_OFFSET 9
+
+#define RTL8367C_PHY_PAGE_ADDRESS 31
+
+#define EEE_OCP_PHY_ADDR (0xA5D0)
+
+/* Type of port-based dot1x auth/unauth*/
+typedef enum rtk_dot1x_auth_status_e
+{
+    UNAUTH = 0,
+    AUTH,
+    AUTH_STATUS_END
+} rtk_dot1x_auth_status_t;
+
+typedef enum rtk_dot1x_direction_e
+{
+    DIR_BOTH = 0,
+    DIR_IN,
+    DIRECTION_END
+} rtk_dot1x_direction_t;
+
+/* unauth pkt action */
+typedef enum rtk_dot1x_unauth_action_e
+{
+    DOT1X_ACTION_DROP = 0,
+    DOT1X_ACTION_TRAP2CPU,
+    DOT1X_ACTION_GUESTVLAN,
+    DOT1X_ACTION_END
+} rtk_dot1x_unauth_action_t;
+
 typedef enum rtk_filter_act_cactext_e
 {
     FILTER_ENACT_CACTEXT_VLANONLY = 0,

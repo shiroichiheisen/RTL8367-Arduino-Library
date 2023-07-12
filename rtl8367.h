@@ -104,6 +104,11 @@ public:
     int32_t rtk_filter_iprange_set(uint32_t index, rtk_filter_iprange_t type, uint32_t upperIp, uint32_t lowerIp);
     int32_t rtk_filter_vidrange_set(uint32_t index, rtk_filter_vidrange_t type, uint32_t upperVid, uint32_t lowerVid);
     int32_t rtk_filter_portrange_set(uint32_t index, rtk_filter_portrange_t type, uint32_t upperPort, uint32_t lowerPort);
+    int32_t rtk_eee_init();
+    int32_t rtk_eee_portEnable_set(rtk_port_t port, rtk_enable_t enable);
+    int32_t rtk_dot1x_eapolFrame2CpuEnable_set(rtk_enable_t enable);
+    int32_t rtk_dot1x_portBasedEnable_set(rtk_port_t port, rtk_enable_t enable);
+    int32_t rtk_dot1x_portBasedAuthStatus_set(rtk_port_t port, rtk_dot1x_auth_status_t port_auth);
 
 private:
     uint32_t vlan_mbrCfgVid[RTL8367C_CVIDXNO];
@@ -412,6 +417,10 @@ private:
     int32_t rtl8367c_setAsicAclIpRange(uint32_t index, uint32_t type, uint32_t upperIp, uint32_t lowerIp);
     int32_t rtl8367c_setAsicAclVidRange(uint32_t index, uint32_t type, uint32_t upperVid, uint32_t lowerVid);
     int32_t rtl8367c_setAsicAclPortRange(uint32_t index, uint32_t type, uint32_t upperPort, uint32_t lowerPort);
+    int32_t rtl8367c_setAsicEee100M(uint32_t port, uint32_t enable);
+    int32_t rtl8367c_setAsicEeeGiga(uint32_t port, uint32_t enable);
+    int32_t rtl8367c_setAsic1xPBEnConfig(uint32_t port, uint32_t enabled);
+    int32_t rtl8367c_setAsic1xPBAuthConfig(uint32_t port, uint32_t auth);
 
     const uint8_t filter_templateField[RTL8367C_ACLTEMPLATENO][RTL8367C_ACLRULEFIELDNO] = {
         {ACL_DMAC0, ACL_DMAC1, ACL_DMAC2, ACL_SMAC0, ACL_SMAC1, ACL_SMAC2, ACL_ETHERTYPE, ACL_FIELD_SELECT15},

@@ -13783,3 +13783,241 @@ int32_t rtl8367::rtk_filter_portrange_set(uint32_t index, rtk_filter_portrange_t
 
 // ------------------------- EEE ---------------------------------
 
+int32_t rtl8367::rtk_eee_init()
+{
+    int32_t retVal;
+
+    if ((retVal = rtl8367c_setAsicRegBit(0x0018, 10, 1)) != RT_ERR_OK)
+        return retVal;
+
+    if ((retVal = rtl8367c_setAsicRegBit(0x0018, 11, 1)) != RT_ERR_OK)
+        return retVal;
+
+    return RT_ERR_OK;
+}
+
+/*
+@func int32_t | rtl8367c_setAsicEee100M | Set eee force mode function enable/disable.
+@parm uint32_t | port | The port number.
+@parm uint32_t | enabled | 1: enabled, 0: disabled.
+@rvalue RT_ERR_OK | Success.
+@rvalue RT_ERR_SMI | SMI access error.
+@rvalue RT_ERR_INPUT | Invalid input parameter.
+@comm
+    This API set the 100M EEE enable function.
+
+*/
+int32_t rtl8367::rtl8367c_setAsicEee100M(uint32_t port, uint32_t enable)
+{
+    int32_t retVal;
+    uint32_t regData;
+
+    if (port >= RTL8367C_PORTNO)
+        return RT_ERR_PORT_ID;
+
+    if (enable > 1)
+        return RT_ERR_INPUT;
+
+    if ((retVal = rtl8367c_getAsicPHYOCPReg(port, EEE_OCP_PHY_ADDR, &regData)) != RT_ERR_OK)
+        return retVal;
+
+    if (enable)
+        regData |= (0x0001 << 1);
+    else
+        regData &= ~(0x0001 << 1);
+
+    if ((retVal = rtl8367c_setAsicPHYOCPReg(port, EEE_OCP_PHY_ADDR, regData)) != RT_ERR_OK)
+        return retVal;
+
+    if ((retVal = rtl8367c_getAsicReg(RTL8367C_PORT_EEE_CFG_REG(port), &regData)) != RT_ERR_OK)
+        return retVal;
+
+    if (enable)
+        regData |= (0x0001 << 11);
+    else
+        regData &= ~(0x0001 << 11);
+
+    if ((retVal = rtl8367c_setAsicReg(RTL8367C_PORT_EEE_CFG_REG(port), regData)) != RT_ERR_OK)
+        return retVal;
+
+    return RT_ERR_OK;
+}
+
+/*
+@func ret_t | rtl8367c_setAsicEeeGiga | Set eee force mode function enable/disable.
+@parm uint32_t | port | The port number.
+@parm uint32_t | enabled | 1: enabled, 0: disabled.
+@rvalue RT_ERR_OK | Success.
+@rvalue RT_ERR_SMI | SMI access error.
+@rvalue RT_ERR_INPUT | Invalid input parameter.
+@comm
+    This API set the 100M EEE enable function.
+
+*/
+int32_t rtl8367::rtl8367c_setAsicEeeGiga(uint32_t port, uint32_t enable)
+{
+    int32_t retVal;
+    uint32_t regData;
+
+    if (port >= RTL8367C_PORTNO)
+        return RT_ERR_PORT_ID;
+
+    if (enable > 1)
+        return RT_ERR_INPUT;
+
+    if ((retVal = rtl8367c_getAsicPHYOCPReg(port, EEE_OCP_PHY_ADDR, &regData)) != RT_ERR_OK)
+        return retVal;
+
+    if (enable)
+        regData |= (0x0001 << 2);
+    else
+        regData &= ~(0x0001 << 2);
+
+    if ((retVal = rtl8367c_setAsicPHYOCPReg(port, EEE_OCP_PHY_ADDR, regData)) != RT_ERR_OK)
+        return retVal;
+
+    if ((retVal = rtl8367c_getAsicReg(RTL8367C_PORT_EEE_CFG_REG(port), &regData)) != RT_ERR_OK)
+        return retVal;
+
+    if (enable)
+        regData |= (0x0001 << 10);
+    else
+        regData &= ~(0x0001 << 10);
+
+    if ((retVal = rtl8367c_setAsicReg(RTL8367C_PORT_EEE_CFG_REG(port), regData)) != RT_ERR_OK)
+        return retVal;
+
+    return RT_ERR_OK;
+}
+
+int32_t rtl8367::rtk_eee_portEnable_set(rtk_port_t port, rtk_enable_t enable)
+{
+    int32_t retVal;
+    uint32_t regData;
+    uint32_t phy_port;
+
+    /* Check port is UTP port */
+    RTK_CHK_PORT_IS_UTP(port);
+
+    if (enable >= RTK_ENABLE_END)
+        return RT_ERR_INPUT;
+
+    phy_port = rtk_switch_port_L2P_get(port);
+
+    if ((retVal = rtl8367c_setAsicEee100M(phy_port, enable)) != RT_ERR_OK)
+        return retVal;
+    if ((retVal = rtl8367c_setAsicEeeGiga(phy_port, enable)) != RT_ERR_OK)
+        return retVal;
+
+    if ((retVal = rtl8367c_setAsicPHYReg(phy_port, RTL8367C_PHY_PAGE_ADDRESS, 0)) != RT_ERR_OK)
+        return retVal;
+    if ((retVal = rtl8367c_getAsicPHYReg(phy_port, 0, &regData)) != RT_ERR_OK)
+        return retVal;
+    regData |= 0x0200;
+    if ((retVal = rtl8367c_setAsicPHYReg(phy_port, 0, regData)) != RT_ERR_OK)
+        return retVal;
+
+    return RT_ERR_OK;
+}
+
+// ------------------------ 802.1X --------------------------------
+
+int32_t rtl8367::rtk_dot1x_eapolFrame2CpuEnable_set(rtk_enable_t enable)
+{
+    int32_t retVal;
+    rtl8367c_rma_t rmacfg;
+
+    if (enable >= RTK_ENABLE_END)
+        return RT_ERR_ENABLE;
+
+    if ((retVal = rtl8367c_getAsicRma(3, &rmacfg)) != RT_ERR_OK)
+        return retVal;
+
+    if (ENABLED == enable)
+        rmacfg.operation = RMAOP_TRAP_TO_CPU;
+    else if (DISABLED == enable)
+        rmacfg.operation = RMAOP_FORWARD;
+
+    if ((retVal = rtl8367c_setAsicRma(3, &rmacfg)) != RT_ERR_OK)
+        return retVal;
+
+    return RT_ERR_OK;
+}
+
+/* Function Name:
+ *      rtl8367c_setAsic1xPBEnConfig
+ * Description:
+ *      Set 802.1x port-based port enable configuration
+ * Input:
+ *      port    - Physical port number (0~7)
+ *      enabled - 1: enabled, 0: disabled
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK       - Success
+ *      RT_ERR_SMI      - SMI access error
+ *      RT_ERR_PORT_ID  - Invalid port number
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsic1xPBEnConfig(uint32_t port, uint32_t enabled)
+{
+    if (port >= RTL8367C_PORTNO)
+        return RT_ERR_PORT_ID;
+
+    return rtl8367c_setAsicRegBit(RTL8367C_DOT1X_PORT_ENABLE_REG, port, enabled);
+}
+int32_t rtl8367::rtk_dot1x_portBasedEnable_set(rtk_port_t port, rtk_enable_t enable)
+{
+    int32_t retVal;
+
+    /* Check port Valid */
+    RTK_CHK_PORT_VALID(port);
+
+    if (enable >= RTK_ENABLE_END)
+        return RT_ERR_ENABLE;
+
+    if ((retVal = rtl8367c_setAsic1xPBEnConfig(rtk_switch_port_L2P_get(port), enable)) != RT_ERR_OK)
+        return retVal;
+
+    return RT_ERR_OK;
+}
+
+/* Function Name:
+ *      rtl8367c_setAsic1xPBAuthConfig
+ * Description:
+ *      Set 802.1x port-based authorised port configuration
+ * Input:
+ *      port    - Physical port number (0~7)
+ *      auth    - 1: authorised, 0: non-authorised
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK       - Success
+ *      RT_ERR_SMI      - SMI access error
+ *      RT_ERR_PORT_ID  - Invalid port number
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsic1xPBAuthConfig(uint32_t port, uint32_t auth)
+{
+    if (port >= RTL8367C_PORTNO)
+        return RT_ERR_PORT_ID;
+
+    return rtl8367c_setAsicRegBit(RTL8367C_DOT1X_PORT_AUTH_REG, port, auth);
+}
+int32_t rtl8367::rtk_dot1x_portBasedAuthStatus_set(rtk_port_t port, rtk_dot1x_auth_status_t port_auth)
+{
+    int32_t retVal;
+
+    /* Check port Valid */
+    RTK_CHK_PORT_VALID(port);
+
+    if (port_auth >= AUTH_STATUS_END)
+        return RT_ERR_DOT1X_PORTBASEDAUTH;
+
+    if ((retVal = rtl8367c_setAsic1xPBAuthConfig(rtk_switch_port_L2P_get(port), port_auth)) != RT_ERR_OK)
+        return retVal;
+
+    return RT_ERR_OK;
+}

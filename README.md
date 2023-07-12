@@ -104,6 +104,11 @@ This library is based on the realteck original library, theres a programming gui
 - [x] rtk_filter_iprange_set
 - [x] rtk_filter_vidrange_set
 - [x] rtk_filter_portrange_set
+- [x] rtk_eee_init
+- [x] rtk_eee_portEnable_set
+- [x] rtk_dot1x_eapolFrame2CpuEnable_set
+- [x] rtk_dot1x_portBasedEnable_set
+- [x] rtk_dot1x_portBasedAuthStatus_set
 
 # tested on:
 
