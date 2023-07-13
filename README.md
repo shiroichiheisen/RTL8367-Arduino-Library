@@ -8,7 +8,7 @@ This library doesn't use the Arduino wire library, it's using its own software i
 
 # Important:
 
-You need to wait for 1 second after the switch is powered on to use the library because the switch needs time to start and read the eeprom. If you're creating a board and don't have the eeprom data, you can use the .bin file on the eeprom folder to program the eeprom, the file is a dump of the eeprom of an rtl8367 switch, so you can use it to program your eeprom.
+You need to wait for 2 second after the switch is powered on to use the library because the switch needs time to start and read the eeprom. If you're creating a board and don't have the eeprom data, you can use the .bin file on the eeprom folder to program the eeprom, the file is a dump of the eeprom of an rtl8367 switch, so you can use it to program your eeprom.
 This library is based on the Realtek original library, there's a programming guide from Realtek on this library.
 
 This library is based on Realtek API 1.3.12, I don't have converted all of the functions from the API, but with some time I will convert them all, but now we have all the functions on the programming guide converted to this library.
