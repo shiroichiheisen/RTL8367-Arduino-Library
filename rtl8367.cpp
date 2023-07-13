@@ -13844,7 +13844,7 @@ int32_t rtl8367::rtl8367c_setAsicEee100M(uint32_t port, uint32_t enable)
 }
 
 /*
-@func ret_t | rtl8367c_setAsicEeeGiga | Set eee force mode function enable/disable.
+@func int32_t | rtl8367c_setAsicEeeGiga | Set eee force mode function enable/disable.
 @parm uint32_t | port | The port number.
 @parm uint32_t | enabled | 1: enabled, 0: disabled.
 @rvalue RT_ERR_OK | Success.
@@ -14361,6 +14361,1179 @@ int32_t rtl8367::rtk_rate_shareMeter_get(uint32_t index, rtk_meter_type_t *pType
         *pRate = regData << 3;
     else
         *pRate = regData;
+
+    return RT_ERR_OK;
+}
+
+/* Function Name:
+ *      rtl8367c_setAsicShareMeterBucketSize
+ * Description:
+ *      Set meter related leaky bucket threshold
+ * Input:
+ *      index       - hared meter index (0-31)
+ *      lbthreshold - Leaky bucket threshold of meter
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK               - Success
+ *      RT_ERR_SMI              - SMI access error
+ *      RT_ERR_FILTER_METER_ID  - Invalid meter
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsicShareMeterBucketSize(uint32_t index, uint32_t lbthreshold)
+{
+
+    if (index > RTL8367C_METERMAX)
+        return RT_ERR_FILTER_METER_ID;
+
+    if (index < 32)
+        return rtl8367c_setAsicReg(RTL8367C_METER_BUCKET_SIZE_REG(index), lbthreshold);
+    else
+        return rtl8367c_setAsicReg(RTL8367C_REG_METER32_BUCKET_SIZE + index - 32, lbthreshold);
+}
+/* Function Name:
+ *      rtl8367c_getAsicShareMeterBucketSize
+ * Description:
+ *      Get meter related leaky bucket threshold
+ * Input:
+ *      index       - hared meter index (0-31)
+ *      pLbthreshold - Leaky bucket threshold of meter
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK               - Success
+ *      RT_ERR_SMI              - SMI access error
+ *      RT_ERR_FILTER_METER_ID  - Invalid meter
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_getAsicShareMeterBucketSize(uint32_t index, uint32_t *pLbthreshold)
+{
+    if (index > RTL8367C_METERMAX)
+        return RT_ERR_FILTER_METER_ID;
+
+    if (index < 32)
+        return rtl8367c_getAsicReg(RTL8367C_METER_BUCKET_SIZE_REG(index), pLbthreshold);
+    else
+        return rtl8367c_getAsicReg(RTL8367C_REG_METER32_BUCKET_SIZE + index - 32, pLbthreshold);
+}
+int32_t rtl8367::rtk_rate_shareMeterBucket_set(uint32_t index, uint32_t bucket_size)
+{
+    int32_t retVal;
+
+    if (index > halCtrl.max_meter_id)
+        return RT_ERR_FILTER_METER_ID;
+
+    if (bucket_size > RTL8367C_METERBUCKETSIZEMAX)
+        return RT_ERR_INPUT;
+
+    if ((retVal = rtl8367c_setAsicShareMeterBucketSize(index, bucket_size)) != RT_ERR_OK)
+        return retVal;
+
+    return RT_ERR_OK;
+}
+
+int32_t rtl8367::rtk_rate_shareMeterBucket_get(uint32_t index, uint32_t *pBucket_size)
+{
+    int32_t retVal;
+
+    if (index > halCtrl.max_meter_id)
+        return RT_ERR_FILTER_METER_ID;
+
+    if (NULL == pBucket_size)
+        return RT_ERR_NULL_POINTER;
+
+    if ((retVal = rtl8367c_getAsicShareMeterBucketSize(index, pBucket_size)) != RT_ERR_OK)
+        return retVal;
+
+    return RT_ERR_OK;
+}
+
+// -------------------------------------------- IGMP --------------------------------------------
+
+/* Function Name:
+ *      rtl8367c_setAsicLutIpMulticastLookup
+ * Description:
+ *      Set Lut IP multicast lookup function
+ * Input:
+ *      enabled - 1: enabled, 0: disabled
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK   - Success
+ *      RT_ERR_SMI  - SMI access error
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsicLutIpMulticastLookup(uint32_t enabled)
+{
+    return rtl8367c_setAsicRegBit(RTL8367C_REG_LUT_CFG, RTL8367C_LUT_IPMC_HASH_OFFSET, enabled);
+}
+
+/* Function Name:
+ *      rtl8367c_setAsicLutIpLookupMethod
+ * Description:
+ *      Set Lut IP lookup hash with DIP or {DIP,SIP} pair
+ * Input:
+ *      type - 1: When DIP can be found in IPMC_GROUP_TABLE, use DIP+SIP Hash, otherwise, use DIP+(SIP=0.0.0.0) Hash.
+ *             0: When DIP can be found in IPMC_GROUP_TABLE, use DIP+(SIP=0.0.0.0) Hash, otherwise use DIP+SIP Hash.
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK   - Success
+ *      RT_ERR_SMI  - SMI access error
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsicLutIpLookupMethod(uint32_t type)
+{
+    return rtl8367c_setAsicRegBit(RTL8367C_REG_LUT_CFG, RTL8367C_LUT_IPMC_LOOKUP_OP_OFFSET, type);
+}
+
+/* Function Name:
+ *      rtl8367c_setAsicIGMPv1Opeartion
+ * Description:
+ *      Set port-based IGMPv1 Control packet action
+ * Input:
+ *      port            - port number
+ *      igmpv1_op       - IGMPv1 control packet action
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK       - Success
+ *      RT_ERR_PORT_ID  - Error PORT ID
+ *      RT_ERR_SMI      - SMI access error
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsicIGMPv1Opeartion(uint32_t port, uint32_t igmpv1_op)
+{
+    int32_t retVal;
+
+    if (port > RTL8367C_PORTIDMAX)
+        return RT_ERR_PORT_ID;
+
+    if (igmpv1_op >= PROTOCOL_OP_END)
+        return RT_ERR_INPUT;
+
+    /* IGMPv1 operation */
+    if (port < 8)
+    {
+        retVal = rtl8367c_setAsicRegBits(RTL8367C_REG_IGMP_PORT0_CONTROL + port, RTL8367C_IGMP_PORT0_CONTROL_IGMPV1_OP_MASK, igmpv1_op);
+        if (retVal != RT_ERR_OK)
+            return retVal;
+    }
+    else
+    {
+        retVal = rtl8367c_setAsicRegBits(RTL8367C_REG_IGMP_PORT8_CONTROL + port - 8, RTL8367C_IGMP_PORT0_CONTROL_IGMPV1_OP_MASK, igmpv1_op);
+        if (retVal != RT_ERR_OK)
+            return retVal;
+    }
+
+    return RT_ERR_OK;
+}
+
+/* Function Name:
+ *      rtl8367c_setAsicIGMPv2Opeartion
+ * Description:
+ *      Set port-based IGMPv2 Control packet action
+ * Input:
+ *      port            - port number
+ *      igmpv2_op       - IGMPv2 control packet action
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK       - Success
+ *      RT_ERR_PORT_ID  - Error PORT ID
+ *      RT_ERR_SMI      - SMI access error
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsicIGMPv2Opeartion(uint32_t port, uint32_t igmpv2_op)
+{
+    int32_t retVal;
+
+    if (port > RTL8367C_PORTIDMAX)
+        return RT_ERR_PORT_ID;
+
+    if (igmpv2_op >= PROTOCOL_OP_END)
+        return RT_ERR_INPUT;
+
+    /* IGMPv2 operation */
+    if (port < 8)
+    {
+        retVal = rtl8367c_setAsicRegBits(RTL8367C_REG_IGMP_PORT0_CONTROL + port, RTL8367C_IGMP_PORT0_CONTROL_IGMPV2_OP_MASK, igmpv2_op);
+        if (retVal != RT_ERR_OK)
+            return retVal;
+    }
+    else
+    {
+        retVal = rtl8367c_setAsicRegBits(RTL8367C_REG_IGMP_PORT8_CONTROL + port - 8, RTL8367C_IGMP_PORT0_CONTROL_IGMPV2_OP_MASK, igmpv2_op);
+        if (retVal != RT_ERR_OK)
+            return retVal;
+    }
+
+    return RT_ERR_OK;
+}
+
+/* Function Name:
+ *      rtl8367c_setAsicIGMPv3Opeartion
+ * Description:
+ *      Set port-based IGMPv3 Control packet action
+ * Input:
+ *      port            - port number
+ *      igmpv3_op       - IGMPv3 control packet action
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK       - Success
+ *      RT_ERR_PORT_ID  - Error PORT ID
+ *      RT_ERR_SMI      - SMI access error
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsicIGMPv3Opeartion(uint32_t port, uint32_t igmpv3_op)
+{
+    int32_t retVal;
+
+    if (port > RTL8367C_PORTIDMAX)
+        return RT_ERR_PORT_ID;
+
+    if (igmpv3_op >= PROTOCOL_OP_END)
+        return RT_ERR_INPUT;
+
+    /* IGMPv3 operation */
+    if (port < 8)
+    {
+        retVal = rtl8367c_setAsicRegBits(RTL8367C_REG_IGMP_PORT0_CONTROL + port, RTL8367C_IGMP_PORT0_CONTROL_IGMPV3_OP_MASK, igmpv3_op);
+        if (retVal != RT_ERR_OK)
+            return retVal;
+    }
+    else
+    {
+        retVal = rtl8367c_setAsicRegBits(RTL8367C_REG_IGMP_PORT8_CONTROL + port - 8, RTL8367C_IGMP_PORT0_CONTROL_IGMPV3_OP_MASK, igmpv3_op);
+        if (retVal != RT_ERR_OK)
+            return retVal;
+    }
+
+    return RT_ERR_OK;
+}
+
+/* Function Name:
+ *      rtl8367c_setAsicMLDv1Opeartion
+ * Description:
+ *      Set port-based MLDv1 Control packet action
+ * Input:
+ *      port            - port number
+ *      mldv1_op        - MLDv1 control packet action
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK       - Success
+ *      RT_ERR_PORT_ID  - Error PORT ID
+ *      RT_ERR_SMI      - SMI access error
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsicMLDv1Opeartion(uint32_t port, uint32_t mldv1_op)
+{
+    int32_t retVal;
+
+    if (port > RTL8367C_PORTIDMAX)
+        return RT_ERR_PORT_ID;
+
+    if (mldv1_op >= PROTOCOL_OP_END)
+        return RT_ERR_INPUT;
+
+    /* MLDv1 operation */
+    if (port < 8)
+    {
+        retVal = rtl8367c_setAsicRegBits(RTL8367C_REG_IGMP_PORT0_CONTROL + port, RTL8367C_IGMP_PORT0_CONTROL_MLDv1_OP_MASK, mldv1_op);
+        if (retVal != RT_ERR_OK)
+            return retVal;
+    }
+    else
+    {
+        retVal = rtl8367c_setAsicRegBits(RTL8367C_REG_IGMP_PORT8_CONTROL + port - 8, RTL8367C_IGMP_PORT0_CONTROL_MLDv1_OP_MASK, mldv1_op);
+        if (retVal != RT_ERR_OK)
+            return retVal;
+    }
+
+    return RT_ERR_OK;
+}
+
+/* Function Name:
+ *      rtl8367c_setAsicMLDv2Opeartion
+ * Description:
+ *      Set port-based MLDv2 Control packet action
+ * Input:
+ *      port            - port number
+ *      mldv2_op        - MLDv2 control packet action
+ * Output:
+ *      none
+ * Return:
+ *      RT_ERR_OK       - Success
+ *      RT_ERR_PORT_ID  - Error PORT ID
+ *      RT_ERR_SMI      - SMI access error
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsicMLDv2Opeartion(uint32_t port, uint32_t mldv2_op)
+{
+    int32_t retVal;
+
+    if (port > RTL8367C_PORTIDMAX)
+        return RT_ERR_PORT_ID;
+
+    if (mldv2_op >= PROTOCOL_OP_END)
+        return RT_ERR_INPUT;
+
+    /* MLDv2 operation */
+    if (port < 8)
+    {
+        retVal = rtl8367c_setAsicRegBits(RTL8367C_REG_IGMP_PORT0_CONTROL + port, RTL8367C_IGMP_PORT0_CONTROL_MLDv2_OP_MASK, mldv2_op);
+        if (retVal != RT_ERR_OK)
+            return retVal;
+    }
+    else
+    {
+        retVal = rtl8367c_setAsicRegBits(RTL8367C_REG_IGMP_PORT8_CONTROL + port - 8, RTL8367C_IGMP_PORT0_CONTROL_MLDv2_OP_MASK, mldv2_op);
+        if (retVal != RT_ERR_OK)
+            return retVal;
+    }
+
+    return RT_ERR_OK;
+}
+
+/* Function Name:
+ *      rtl8367c_setAsicIGMPAllowDynamicRouterPort
+ * Description:
+ *      Set IGMP dynamic router port allow mask
+ * Input:
+ *      pmsk    - Allow dynamic router port mask
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK           - Success
+ *      RT_ERR_SMI          - SMI access error
+ *      RT_ERR_PORT_MASK    - Invalid port mask
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsicIGMPAllowDynamicRouterPort(uint32_t pmsk)
+{
+    return rtl8367c_setAsicReg(RTL8367C_REG_IGMP_MLD_CFG4, pmsk);
+}
+
+/* Function Name:
+ *      rtl8367c_setAsicIGMPFastLeaveEn
+ * Description:
+ *      Enable/Disable Fast Leave
+ * Input:
+ *      enabled - 1:enable Fast Leave; 0:disable Fast Leave
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK       - Success
+ *      RT_ERR_SMI      - SMI access error
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsicIGMPFastLeaveEn(uint32_t enabled)
+{
+    int32_t retVal;
+
+    /* Fast Leave */
+    retVal = rtl8367c_setAsicRegBits(RTL8367C_REG_IGMP_MLD_CFG0, RTL8367C_FAST_LEAVE_EN_MASK, (enabled >= 1) ? 1 : 0);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    return RT_ERR_OK;
+}
+
+/* Function Name:
+ *      rtl8367c_setAsicIGMPReportLeaveFlood
+ * Description:
+ *      Set IGMP/MLD Report/Leave flood
+ * Input:
+ *      flood   - 0: Reserved, 1: flooding to router ports, 2: flooding to all ports, 3: flooding to router port or to all ports if there is no router port
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK       - Success
+ *      RT_ERR_SMI      - SMI access error
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsicIGMPReportLeaveFlood(uint32_t flood)
+{
+    int32_t retVal;
+
+    retVal = rtl8367c_setAsicRegBits(RTL8367C_REG_IGMP_MLD_CFG3, RTL8367C_REPORT_LEAVE_FORWARD_MASK, flood);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    return RT_ERR_OK;
+}
+
+/* Function Name:
+ *      rtl8367c_setAsicIgmp
+ * Description:
+ *      Set IGMP/MLD state
+ * Input:
+ *      enabled     - 1: enabled, 0: disabled
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK   - Success
+ *      RT_ERR_SMI  - SMI access error
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsicIgmp(uint32_t enabled)
+{
+    int32_t retVal;
+
+    /* Enable/Disable H/W IGMP/MLD */
+    retVal = rtl8367c_setAsicRegBit(RTL8367C_REG_IGMP_MLD_CFG0, RTL8367C_IGMP_MLD_EN_OFFSET, enabled);
+
+    return retVal;
+}
+
+/* Function Name:
+ *      rtl8367c_getAsicIgmp
+ * Description:
+ *      Get IGMP/MLD state
+ * Input:
+ *      enabled     - 1: enabled, 0: disabled
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK   - Success
+ *      RT_ERR_SMI  - SMI access error
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_getAsicIgmp(uint32_t *ptr_enabled)
+{
+    int32_t retVal;
+
+    retVal = rtl8367c_getAsicRegBit(RTL8367C_REG_IGMP_MLD_CFG0, RTL8367C_IGMP_MLD_EN_OFFSET, ptr_enabled);
+    return retVal;
+}
+int32_t rtl8367::rtk_igmp_init()
+{
+    int32_t retVal;
+    uint32_t port;
+
+    if ((retVal = rtl8367c_setAsicLutIpMulticastLookup(ENABLED)) != RT_ERR_OK)
+        return retVal;
+
+    if ((retVal = rtl8367c_setAsicLutIpLookupMethod(1)) != RT_ERR_OK)
+        return retVal;
+
+    RTK_SCAN_ALL_PHY_PORTMASK(port)
+    {
+        if ((retVal = rtl8367c_setAsicIGMPv1Opeartion(port, PROTOCOL_OP_ASIC)) != RT_ERR_OK)
+            return retVal;
+
+        if ((retVal = rtl8367c_setAsicIGMPv2Opeartion(port, PROTOCOL_OP_ASIC)) != RT_ERR_OK)
+            return retVal;
+
+        if ((retVal = rtl8367c_setAsicIGMPv3Opeartion(port, PROTOCOL_OP_FLOOD)) != RT_ERR_OK)
+            return retVal;
+
+        if ((retVal = rtl8367c_setAsicMLDv1Opeartion(port, PROTOCOL_OP_ASIC)) != RT_ERR_OK)
+            return retVal;
+
+        if ((retVal = rtl8367c_setAsicMLDv2Opeartion(port, PROTOCOL_OP_FLOOD)) != RT_ERR_OK)
+            return retVal;
+    }
+
+    if ((retVal = rtl8367c_setAsicIGMPAllowDynamicRouterPort(halCtrl.phy_portmask)) != RT_ERR_OK)
+        return retVal;
+
+    if ((retVal = rtl8367c_setAsicIGMPFastLeaveEn(ENABLED)) != RT_ERR_OK)
+        return retVal;
+
+    if ((retVal = rtl8367c_setAsicIGMPReportLeaveFlood(1)) != RT_ERR_OK)
+        return retVal;
+
+    if ((retVal = rtl8367c_setAsicIgmp(ENABLED)) != RT_ERR_OK)
+        return retVal;
+
+    return RT_ERR_OK;
+}
+
+int32_t rtl8367::rtk_igmp_state_set(rtk_enable_t enabled)
+{
+    int32_t retVal;
+
+    if (enabled >= RTK_ENABLE_END)
+        return RT_ERR_INPUT;
+
+    if ((retVal = rtl8367c_setAsicIgmp(enabled)) != RT_ERR_OK)
+        return retVal;
+
+    return RT_ERR_OK;
+}
+
+int32_t rtl8367::rtk_igmp_state_get(rtk_enable_t *pEnabled)
+{
+    int32_t retVal;
+
+    if (pEnabled == NULL)
+        return RT_ERR_NULL_POINTER;
+
+    if ((retVal = rtl8367c_getAsicIgmp((uint32_t *)pEnabled)) != RT_ERR_OK)
+        return retVal;
+
+    return RT_ERR_OK;
+}
+
+/* Function Name:
+ *      rtl8367c_setAsicIGMPStaticRouterPort
+ * Description:
+ *      Set IGMP static router port mask
+ * Input:
+ *      pmsk    - Static portmask
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK           - Success
+ *      RT_ERR_SMI          - SMI access error
+ *      RT_ERR_PORT_MASK    - Invalid port mask
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsicIGMPStaticRouterPort(uint32_t pmsk)
+{
+    if (pmsk > RTL8367C_PORTMASK)
+        return RT_ERR_PORT_MASK;
+
+    return rtl8367c_setAsicRegBits(RTL8367C_REG_IGMP_STATIC_ROUTER_PORT, RTL8367C_IGMP_STATIC_ROUTER_PORT_MASK, pmsk);
+}
+
+int32_t rtl8367::rtk_igmp_static_router_port_set(rtk_portmask_t *pPortmask)
+{
+    int32_t retVal;
+    uint32_t pmask;
+
+    /* Check Valid port mask */
+    if (pPortmask == NULL)
+        return RT_ERR_NULL_POINTER;
+
+    RTK_CHK_PORTMASK_VALID(pPortmask);
+
+    if ((retVal = rtk_switch_portmask_L2P_get(pPortmask, &pmask)) != RT_ERR_OK)
+        return retVal;
+
+    if ((retVal = rtl8367c_setAsicIGMPStaticRouterPort(pmask)) != RT_ERR_OK)
+        return retVal;
+
+    return RT_ERR_OK;
+}
+
+/* Function Name:
+ *      rtl8367c_getAsicIGMPStaticRouterPort
+ * Description:
+ *      Get IGMP static router port mask
+ * Input:
+ *      pmsk    - Static portmask
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK   - Success
+ *      RT_ERR_SMI  - SMI access error
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_getAsicIGMPStaticRouterPort(uint32_t *pmsk)
+{
+    return rtl8367c_getAsicRegBits(RTL8367C_REG_IGMP_STATIC_ROUTER_PORT, RTL8367C_IGMP_STATIC_ROUTER_PORT_MASK, pmsk);
+}
+
+int32_t rtl8367::rtk_igmp_static_router_port_get(rtk_portmask_t *pPortmask)
+{
+    int32_t retVal;
+    uint32_t pmask;
+
+    if (pPortmask == NULL)
+        return RT_ERR_NULL_POINTER;
+
+    if ((retVal = rtl8367c_getAsicIGMPStaticRouterPort(&pmask)) != RT_ERR_OK)
+        return retVal;
+
+    if ((retVal = rtk_switch_portmask_P2L_get(pmask, pPortmask)) != RT_ERR_OK)
+        return retVal;
+
+    return RT_ERR_OK;
+}
+
+int32_t rtl8367::rtk_igmp_protocol_set(rtk_port_t port, rtk_igmp_protocol_t protocol, rtk_igmp_action_t action)
+{
+    uint32_t operation;
+    int32_t retVal;
+
+    /* Check port valid */
+    RTK_CHK_PORT_VALID(port);
+
+    if (protocol >= PROTOCOL_END)
+        return RT_ERR_INPUT;
+
+    if (action >= IGMP_ACTION_END)
+        return RT_ERR_INPUT;
+
+    switch (action)
+    {
+    case IGMP_ACTION_FORWARD:
+        operation = PROTOCOL_OP_FLOOD;
+        break;
+    case IGMP_ACTION_TRAP2CPU:
+        operation = PROTOCOL_OP_TRAP;
+        break;
+    case IGMP_ACTION_DROP:
+        operation = PROTOCOL_OP_DROP;
+        break;
+    case IGMP_ACTION_ASIC:
+        operation = PROTOCOL_OP_ASIC;
+        break;
+    default:
+        return RT_ERR_INPUT;
+    }
+
+    switch (protocol)
+    {
+    case PROTOCOL_IGMPv1:
+        if ((retVal = rtl8367c_setAsicIGMPv1Opeartion(rtk_switch_port_L2P_get(port), operation)) != RT_ERR_OK)
+            return retVal;
+
+        break;
+    case PROTOCOL_IGMPv2:
+        if ((retVal = rtl8367c_setAsicIGMPv2Opeartion(rtk_switch_port_L2P_get(port), operation)) != RT_ERR_OK)
+            return retVal;
+
+        break;
+    case PROTOCOL_IGMPv3:
+        if ((retVal = rtl8367c_setAsicIGMPv3Opeartion(rtk_switch_port_L2P_get(port), operation)) != RT_ERR_OK)
+            return retVal;
+
+        break;
+    case PROTOCOL_MLDv1:
+        if ((retVal = rtl8367c_setAsicMLDv1Opeartion(rtk_switch_port_L2P_get(port), operation)) != RT_ERR_OK)
+            return retVal;
+
+        break;
+    case PROTOCOL_MLDv2:
+        if ((retVal = rtl8367c_setAsicMLDv2Opeartion(rtk_switch_port_L2P_get(port), operation)) != RT_ERR_OK)
+            return retVal;
+
+        break;
+    default:
+        return RT_ERR_INPUT;
+    }
+
+    return RT_ERR_OK;
+}
+
+/* Function Name:
+ *      rtl8367c_getAsicIGMPv1Opeartion
+ * Description:
+ *      Get port-based IGMPv1 Control packet action
+ * Input:
+ *      port            - port number
+ * Output:
+ *      igmpv1_op       - IGMPv1 control packet action
+ * Return:
+ *      RT_ERR_OK       - Success
+ *      RT_ERR_PORT_ID  - Error PORT ID
+ *      RT_ERR_SMI      - SMI access error
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_getAsicIGMPv1Opeartion(uint32_t port, uint32_t *igmpv1_op)
+{
+    int32_t retVal;
+    uint32_t value;
+
+    if (port > RTL8367C_PORTIDMAX)
+        return RT_ERR_PORT_ID;
+
+    /* IGMPv1 operation */
+    if (port < 8)
+    {
+        retVal = rtl8367c_getAsicRegBits(RTL8367C_REG_IGMP_PORT0_CONTROL + port, RTL8367C_IGMP_PORT0_CONTROL_IGMPV1_OP_MASK, &value);
+        if (retVal != RT_ERR_OK)
+            return retVal;
+    }
+    else
+    {
+        retVal = rtl8367c_getAsicRegBits(RTL8367C_REG_IGMP_PORT8_CONTROL + port - 8, RTL8367C_IGMP_PORT0_CONTROL_IGMPV1_OP_MASK, &value);
+        if (retVal != RT_ERR_OK)
+            return retVal;
+    }
+
+    *igmpv1_op = value;
+
+    return RT_ERR_OK;
+}
+
+/* Function Name:
+ *      rtl8367c_getAsicIGMPv2Opeartion
+ * Description:
+ *      Get port-based IGMPv2 Control packet action
+ * Input:
+ *      port            - port number
+ * Output:
+ *      igmpv2_op       - IGMPv2 control packet action
+ * Return:
+ *      RT_ERR_OK       - Success
+ *      RT_ERR_PORT_ID  - Error PORT ID
+ *      RT_ERR_SMI      - SMI access error
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_getAsicIGMPv2Opeartion(uint32_t port, uint32_t *igmpv2_op)
+{
+    int32_t retVal;
+    uint32_t value;
+
+    if (port > RTL8367C_PORTIDMAX)
+        return RT_ERR_PORT_ID;
+
+    /* IGMPv2 operation */
+    if (port < 8)
+    {
+        retVal = rtl8367c_getAsicRegBits(RTL8367C_REG_IGMP_PORT0_CONTROL + port, RTL8367C_IGMP_PORT0_CONTROL_IGMPV2_OP_MASK, &value);
+        if (retVal != RT_ERR_OK)
+            return retVal;
+    }
+    else
+    {
+        retVal = rtl8367c_getAsicRegBits(RTL8367C_REG_IGMP_PORT8_CONTROL + port - 8, RTL8367C_IGMP_PORT0_CONTROL_IGMPV2_OP_MASK, &value);
+        if (retVal != RT_ERR_OK)
+            return retVal;
+    }
+
+    *igmpv2_op = value;
+
+    return RT_ERR_OK;
+}
+
+/* Function Name:
+ *      rtl8367c_getAsicIGMPv3Opeartion
+ * Description:
+ *      Get port-based IGMPv3 Control packet action
+ * Input:
+ *      port            - port number
+ * Output:
+ *      igmpv3_op       - IGMPv3 control packet action
+ * Return:
+ *      RT_ERR_OK       - Success
+ *      RT_ERR_PORT_ID  - Error PORT ID
+ *      RT_ERR_SMI      - SMI access error
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_getAsicIGMPv3Opeartion(uint32_t port, uint32_t *igmpv3_op)
+{
+    int32_t retVal;
+    uint32_t value;
+
+    if (port > RTL8367C_PORTIDMAX)
+        return RT_ERR_PORT_ID;
+
+    /* IGMPv3 operation */
+    if (port < 8)
+    {
+        retVal = rtl8367c_getAsicRegBits(RTL8367C_REG_IGMP_PORT0_CONTROL + port, RTL8367C_IGMP_PORT0_CONTROL_IGMPV3_OP_MASK, &value);
+        if (retVal != RT_ERR_OK)
+            return retVal;
+    }
+    else
+    {
+        retVal = rtl8367c_getAsicRegBits(RTL8367C_REG_IGMP_PORT8_CONTROL + port - 8, RTL8367C_IGMP_PORT0_CONTROL_IGMPV3_OP_MASK, &value);
+        if (retVal != RT_ERR_OK)
+            return retVal;
+    }
+
+    *igmpv3_op = value;
+
+    return RT_ERR_OK;
+}
+
+/* Function Name:
+ *      rtl8367c_getAsicMLDv1Opeartion
+ * Description:
+ *      Get port-based MLDv1 Control packet action
+ * Input:
+ *      port            - port number
+ * Output:
+ *      mldv1_op        - MLDv1 control packet action
+ * Return:
+ *      RT_ERR_OK       - Success
+ *      RT_ERR_PORT_ID  - Error PORT ID
+ *      RT_ERR_SMI      - SMI access error
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_getAsicMLDv1Opeartion(uint32_t port, uint32_t *mldv1_op)
+{
+    int32_t retVal;
+    uint32_t value;
+
+    if (port > RTL8367C_PORTIDMAX)
+        return RT_ERR_PORT_ID;
+
+    /* MLDv1 operation */
+    if (port < 8)
+    {
+        retVal = rtl8367c_getAsicRegBits(RTL8367C_REG_IGMP_PORT0_CONTROL + port, RTL8367C_IGMP_PORT0_CONTROL_MLDv1_OP_MASK, &value);
+        if (retVal != RT_ERR_OK)
+            return retVal;
+    }
+    else
+    {
+        retVal = rtl8367c_getAsicRegBits(RTL8367C_REG_IGMP_PORT8_CONTROL + port - 8, RTL8367C_IGMP_PORT0_CONTROL_MLDv1_OP_MASK, &value);
+        if (retVal != RT_ERR_OK)
+            return retVal;
+    }
+
+    *mldv1_op = value;
+
+    return RT_ERR_OK;
+}
+
+/* Function Name:
+ *      rtl8367c_getAsicMLDv2Opeartion
+ * Description:
+ *      Get port-based MLDv2 Control packet action
+ * Input:
+ *      port            - port number
+ * Output:
+ *      mldv2_op        - MLDv2 control packet action
+ * Return:
+ *      RT_ERR_OK       - Success
+ *      RT_ERR_PORT_ID  - Error PORT ID
+ *      RT_ERR_SMI      - SMI access error
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_getAsicMLDv2Opeartion(uint32_t port, uint32_t *mldv2_op)
+{
+    int32_t retVal;
+    uint32_t value;
+
+    if (port > RTL8367C_PORTIDMAX)
+        return RT_ERR_PORT_ID;
+
+    /* MLDv2 operation */
+    if (port < 8)
+    {
+        retVal = rtl8367c_getAsicRegBits(RTL8367C_REG_IGMP_PORT0_CONTROL + port, RTL8367C_IGMP_PORT0_CONTROL_MLDv2_OP_MASK, &value);
+        if (retVal != RT_ERR_OK)
+            return retVal;
+    }
+    else
+    {
+        retVal = rtl8367c_getAsicRegBits(RTL8367C_REG_IGMP_PORT8_CONTROL + port - 8, RTL8367C_IGMP_PORT0_CONTROL_MLDv2_OP_MASK, &value);
+        if (retVal != RT_ERR_OK)
+            return retVal;
+    }
+
+    *mldv2_op = value;
+
+    return RT_ERR_OK;
+}
+int32_t rtl8367::rtk_igmp_protocol_get(rtk_port_t port, rtk_igmp_protocol_t protocol, rtk_igmp_action_t *pAction)
+{
+    uint32_t operation;
+    int32_t retVal;
+
+    /* Check port valid */
+    RTK_CHK_PORT_VALID(port);
+
+    if (protocol >= PROTOCOL_END)
+        return RT_ERR_INPUT;
+
+    if (pAction == NULL)
+        return RT_ERR_NULL_POINTER;
+
+    switch (protocol)
+    {
+    case PROTOCOL_IGMPv1:
+        if ((retVal = rtl8367c_getAsicIGMPv1Opeartion(rtk_switch_port_L2P_get(port), &operation)) != RT_ERR_OK)
+            return retVal;
+
+        break;
+    case PROTOCOL_IGMPv2:
+        if ((retVal = rtl8367c_getAsicIGMPv2Opeartion(rtk_switch_port_L2P_get(port), &operation)) != RT_ERR_OK)
+            return retVal;
+
+        break;
+    case PROTOCOL_IGMPv3:
+        if ((retVal = rtl8367c_getAsicIGMPv3Opeartion(rtk_switch_port_L2P_get(port), &operation)) != RT_ERR_OK)
+            return retVal;
+
+        break;
+    case PROTOCOL_MLDv1:
+        if ((retVal = rtl8367c_getAsicMLDv1Opeartion(rtk_switch_port_L2P_get(port), &operation)) != RT_ERR_OK)
+            return retVal;
+
+        break;
+    case PROTOCOL_MLDv2:
+        if ((retVal = rtl8367c_getAsicMLDv2Opeartion(rtk_switch_port_L2P_get(port), &operation)) != RT_ERR_OK)
+            return retVal;
+
+        break;
+    default:
+        return RT_ERR_INPUT;
+    }
+
+    switch (operation)
+    {
+    case PROTOCOL_OP_FLOOD:
+        *pAction = IGMP_ACTION_FORWARD;
+        break;
+    case PROTOCOL_OP_TRAP:
+        *pAction = IGMP_ACTION_TRAP2CPU;
+        break;
+    case PROTOCOL_OP_DROP:
+        *pAction = IGMP_ACTION_DROP;
+        break;
+    case PROTOCOL_OP_ASIC:
+        *pAction = IGMP_ACTION_ASIC;
+        break;
+    default:
+        return RT_ERR_FAILED;
+    }
+
+    return RT_ERR_OK;
+}
+
+int32_t rtl8367::rtk_igmp_fastLeave_set(rtk_enable_t state)
+{
+    int32_t retVal;
+
+    if (state >= RTK_ENABLE_END)
+        return RT_ERR_INPUT;
+
+    if ((retVal = rtl8367c_setAsicIGMPFastLeaveEn((uint32_t)state)) != RT_ERR_OK)
+        return retVal;
+
+    return RT_ERR_OK;
+}
+
+/* Function Name:
+ *      rtl8367c_getAsicIGMPFastLeaveEn
+ * Description:
+ *      Get Fast Leave state
+ * Input:
+ *      None
+ * Output:
+ *      penabled        - 1:enable Fast Leave; 0:disable Fast Leave
+ * Return:
+ *      RT_ERR_OK       - Success
+ *      RT_ERR_SMI      - SMI access error
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_getAsicIGMPFastLeaveEn(uint32_t *penabled)
+{
+    int32_t retVal;
+    uint32_t value;
+
+    /* Fast Leave */
+    retVal = rtl8367c_getAsicRegBits(RTL8367C_REG_IGMP_MLD_CFG0, RTL8367C_FAST_LEAVE_EN_MASK, &value);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    *penabled = value;
+
+    return RT_ERR_OK;
+}
+int32_t rtl8367::rtk_igmp_fastLeave_get(rtk_enable_t *pState)
+{
+    uint32_t fast_leave;
+    int32_t retVal;
+
+    if (pState == NULL)
+        return RT_ERR_NULL_POINTER;
+
+    if ((retVal = rtl8367c_getAsicIGMPFastLeaveEn(&fast_leave)) != RT_ERR_OK)
+        return retVal;
+
+    *pState = (rtk_enable_t)((fast_leave == 1) ? ENABLED : DISABLED);
+    return RT_ERR_OK;
+}
+
+/* Function Name:
+ *      rtl8367c_setAsicIGMPPortMAXGroup
+ * Description:
+ *      Set per-port Max group number
+ * Input:
+ *      port        - Physical port number (0~7)
+ *      max_group   - max IGMP group
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK           - Success
+ *      RT_ERR_SMI          - SMI access error
+ *      RT_ERR_PORT_ID      - Invalid port number
+ *      RT_ERR_OUT_OF_RANGE - input parameter out of range
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsicIGMPPortMAXGroup(uint32_t port, uint32_t max_group)
+{
+    int32_t retVal;
+
+    if (port > RTL8367C_PORTIDMAX)
+        return RT_ERR_PORT_ID;
+
+    if (max_group > RTL8367C_IGMP_MAX_GOUP)
+        return RT_ERR_OUT_OF_RANGE;
+
+    if (port < 8)
+    {
+        retVal = rtl8367c_setAsicRegBits(RTL8367C_REG_IGMP_PORT01_MAX_GROUP + (port / 2), RTL8367C_PORT0_MAX_GROUP_MASK << (RTL8367C_PORT1_MAX_GROUP_OFFSET * (port % 2)), max_group);
+        if (retVal != RT_ERR_OK)
+            return retVal;
+    }
+    else
+    {
+        retVal = rtl8367c_setAsicRegBits(RTL8367C_REG_IGMP_PORT89_MAX_GROUP + (port / 2), RTL8367C_PORT0_MAX_GROUP_MASK << (RTL8367C_PORT1_MAX_GROUP_OFFSET * (port % 2)), max_group);
+        if (retVal != RT_ERR_OK)
+            return retVal;
+    }
+
+    return RT_ERR_OK;
+}
+int32_t rtl8367::rtk_igmp_maxGroup_set(rtk_port_t port, uint32_t group)
+{
+    int32_t retVal;
+
+    /* Check port valid */
+    RTK_CHK_PORT_VALID(port);
+
+    if (group > RTL8367C_IGMP_MAX_GOUP)
+        return RT_ERR_OUT_OF_RANGE;
+
+    if ((retVal = rtl8367c_setAsicIGMPPortMAXGroup(rtk_switch_port_L2P_get(port), group)) != RT_ERR_OK)
+        return retVal;
+
+    return RT_ERR_OK;
+}
+
+/* Function Name:
+ *      rtl8367c_getAsicIGMPPortMAXGroup
+ * Description:
+ *      Get per-port Max group number
+ * Input:
+ *      port        - Physical port number (0~7)
+ *      max_group   - max IGMP group
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK           - Success
+ *      RT_ERR_SMI          - SMI access error
+ *      RT_ERR_PORT_ID      - Invalid port number
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_getAsicIGMPPortMAXGroup(uint32_t port, uint32_t *max_group)
+{
+    int32_t retVal;
+    uint32_t value;
+
+    if (port > RTL8367C_PORTIDMAX)
+        return RT_ERR_PORT_ID;
+
+    if (port < 8)
+    {
+        retVal = rtl8367c_getAsicRegBits(RTL8367C_REG_IGMP_PORT01_MAX_GROUP + (port / 2), RTL8367C_PORT0_MAX_GROUP_MASK << (RTL8367C_PORT1_MAX_GROUP_OFFSET * (port % 2)), &value);
+        if (retVal != RT_ERR_OK)
+            return retVal;
+    }
+    else
+    {
+        retVal = rtl8367c_getAsicRegBits(RTL8367C_REG_IGMP_PORT89_MAX_GROUP + (port / 2), RTL8367C_PORT0_MAX_GROUP_MASK << (RTL8367C_PORT1_MAX_GROUP_OFFSET * (port % 2)), &value);
+        if (retVal != RT_ERR_OK)
+            return retVal;
+    }
+
+    *max_group = value;
+    return RT_ERR_OK;
+}
+int32_t rtl8367::rtk_igmp_maxGroup_get(rtk_port_t port, uint32_t *pGroup)
+{
+    int32_t retVal;
+
+    /* Check port valid */
+    RTK_CHK_PORT_VALID(port);
+
+    if (pGroup == NULL)
+        return RT_ERR_NULL_POINTER;
+
+    if ((retVal = rtl8367c_getAsicIGMPPortMAXGroup(rtk_switch_port_L2P_get(port), pGroup)) != RT_ERR_OK)
+        return retVal;
+
+    return RT_ERR_OK;
+}
+
+/* Function Name:
+ *      rtl8367c_getAsicIGMPPortCurrentGroup
+ * Description:
+ *      Get per-port current group number
+ * Input:
+ *      port            - Physical port number (0~7)
+ *      current_group   - current IGMP group
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK           - Success
+ *      RT_ERR_SMI          - SMI access error
+ *      RT_ERR_PORT_ID      - Invalid port number
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_getAsicIGMPPortCurrentGroup(uint32_t port, uint32_t *current_group)
+{
+    int32_t retVal;
+    uint32_t value;
+
+    if (port > RTL8367C_PORTIDMAX)
+        return RT_ERR_PORT_ID;
+
+    if (port < 8)
+    {
+        retVal = rtl8367c_getAsicRegBits(RTL8367C_REG_IGMP_PORT01_CURRENT_GROUP + (port / 2), RTL8367C_PORT0_CURRENT_GROUP_MASK << (RTL8367C_PORT1_CURRENT_GROUP_OFFSET * (port % 2)), &value);
+        if (retVal != RT_ERR_OK)
+            return retVal;
+    }
+    else
+    {
+        retVal = rtl8367c_getAsicRegBits(RTL8367C_REG_IGMP_PORT89_CURRENT_GROUP + ((port - 8) / 2), RTL8367C_PORT0_CURRENT_GROUP_MASK << (RTL8367C_PORT1_CURRENT_GROUP_OFFSET * (port % 2)), &value);
+        if (retVal != RT_ERR_OK)
+            return retVal;
+    }
+
+    *current_group = value;
+    return RT_ERR_OK;
+}
+int32_t rtl8367::rtk_igmp_currentGroup_get(rtk_port_t port, uint32_t *pGroup)
+{
+    int32_t retVal;
+
+    /* Check port valid */
+    RTK_CHK_PORT_VALID(port);
+
+    if (pGroup == NULL)
+        return RT_ERR_NULL_POINTER;
+
+    if ((retVal = rtl8367c_getAsicIGMPPortCurrentGroup(rtk_switch_port_L2P_get(port), pGroup)) != RT_ERR_OK)
+        return retVal;
 
     return RT_ERR_OK;
 }

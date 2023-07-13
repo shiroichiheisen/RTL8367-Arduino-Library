@@ -113,6 +113,20 @@ public:
     int32_t rtk_dot1x_unauthPacketOper_set(rtk_port_t port, rtk_dot1x_unauth_action_t unauth_action);
     int32_t rtk_rate_shareMeter_set(uint32_t index, rtk_meter_type_t type, uint32_t rate, rtk_enable_t ifg_include);
     int32_t rtk_rate_shareMeter_get(uint32_t index, rtk_meter_type_t *pType, uint32_t *pRate, rtk_enable_t *pIfg_include);
+    int32_t rtk_rate_shareMeterBucket_set(uint32_t index, uint32_t bucket_size);
+    int32_t rtk_rate_shareMeterBucket_get(uint32_t index, uint32_t *pBucket_size);
+    int32_t rtk_igmp_init();
+    int32_t rtk_igmp_state_set(rtk_enable_t enabled);
+    int32_t rtk_igmp_state_get(rtk_enable_t *pEnabled);
+    int32_t rtk_igmp_static_router_port_set(rtk_portmask_t *pPortmask);
+    int32_t rtk_igmp_static_router_port_get(rtk_portmask_t *pPortmask);
+    int32_t rtk_igmp_protocol_set(rtk_port_t port, rtk_igmp_protocol_t protocol, rtk_igmp_action_t action);
+    int32_t rtk_igmp_protocol_get(rtk_port_t port, rtk_igmp_protocol_t protocol, rtk_igmp_action_t *pAction);
+    int32_t rtk_igmp_fastLeave_set(rtk_enable_t state);
+    int32_t rtk_igmp_fastLeave_get(rtk_enable_t *pState);
+    int32_t rtk_igmp_maxGroup_set(rtk_port_t port, uint32_t group);
+    int32_t rtk_igmp_maxGroup_get(rtk_port_t port, uint32_t *pGroup);
+    int32_t rtk_igmp_currentGroup_get(rtk_port_t port, uint32_t *pGroup);
 
 private:
     uint32_t vlan_mbrCfgVid[RTL8367C_CVIDXNO];
@@ -431,6 +445,31 @@ private:
     int32_t rtl8367c_setAsicShareMeterType(uint32_t index, uint32_t type);
     int32_t rtl8367c_getAsicShareMeter(uint32_t index, uint32_t *pRate, uint32_t *pIfg);
     int32_t rtl8367c_getAsicShareMeterType(uint32_t index, uint32_t *pType);
+    int32_t rtl8367c_setAsicShareMeterBucketSize(uint32_t index, uint32_t lbthreshold);
+    int32_t rtl8367c_getAsicShareMeterBucketSize(uint32_t index, uint32_t *pLbthreshold);
+    int32_t rtl8367c_setAsicLutIpMulticastLookup(uint32_t enabled);
+    int32_t rtl8367c_setAsicLutIpLookupMethod(uint32_t type);
+    int32_t rtl8367c_setAsicIGMPv1Opeartion(uint32_t port, uint32_t igmpv1_op);
+    int32_t rtl8367c_setAsicIGMPv2Opeartion(uint32_t port, uint32_t igmpv2_op);
+    int32_t rtl8367c_setAsicIGMPv3Opeartion(uint32_t port, uint32_t igmpv3_op);
+    int32_t rtl8367c_setAsicMLDv1Opeartion(uint32_t port, uint32_t mldv1_op);
+    int32_t rtl8367c_setAsicMLDv2Opeartion(uint32_t port, uint32_t mldv2_op);
+    int32_t rtl8367c_setAsicIGMPAllowDynamicRouterPort(uint32_t pmsk);
+    int32_t rtl8367c_setAsicIGMPFastLeaveEn(uint32_t enabled);
+    int32_t rtl8367c_setAsicIGMPReportLeaveFlood(uint32_t flood);
+    int32_t rtl8367c_setAsicIgmp(uint32_t enabled);
+    int32_t rtl8367c_getAsicIgmp(uint32_t *ptr_enabled);
+    int32_t rtl8367c_setAsicIGMPStaticRouterPort(uint32_t pmsk);
+    int32_t rtl8367c_getAsicIGMPStaticRouterPort(uint32_t *pmsk);
+    int32_t rtl8367c_getAsicIGMPv1Opeartion(uint32_t port, uint32_t *igmpv1_op);
+    int32_t rtl8367c_getAsicIGMPv2Opeartion(uint32_t port, uint32_t *igmpv2_op);
+    int32_t rtl8367c_getAsicIGMPv3Opeartion(uint32_t port, uint32_t *igmpv3_op);
+    int32_t rtl8367c_getAsicMLDv1Opeartion(uint32_t port, uint32_t *mldv1_op);
+    int32_t rtl8367c_getAsicMLDv2Opeartion(uint32_t port, uint32_t *mldv2_op);
+    int32_t rtl8367c_getAsicIGMPFastLeaveEn(uint32_t *penabled);
+    int32_t rtl8367c_setAsicIGMPPortMAXGroup(uint32_t port, uint32_t max_group);
+    int32_t rtl8367c_getAsicIGMPPortMAXGroup(uint32_t port, uint32_t *max_group);
+    int32_t rtl8367c_getAsicIGMPPortCurrentGroup(uint32_t port, uint32_t *current_group);
 
     const uint8_t filter_templateField[RTL8367C_ACLTEMPLATENO][RTL8367C_ACLRULEFIELDNO] = {
         {ACL_DMAC0, ACL_DMAC1, ACL_DMAC2, ACL_SMAC0, ACL_SMAC1, ACL_SMAC2, ACL_ETHERTYPE, ACL_FIELD_SELECT15},
