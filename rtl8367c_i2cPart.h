@@ -67,7 +67,7 @@ void rtl8367::_smi_readBit(uint32_t bitLen, uint32_t *rData)
     uint32_t u = 0;
 
     /* change GPIO pin to Input only */
-    pinMode(sdaPin, INPUT);
+    pinMode(sdaPin, trasmissionPinModeINPUT);
 
     for (*rData = 0; bitLen > 0; bitLen--)
     {
@@ -105,6 +105,10 @@ void rtl8367::_smi_stop()
     digitalWrite(sckPin, 0);
     CLK_DURATION(usTransmissionDelay);
     digitalWrite(sckPin, 1);
+
+    /* change GPIO pin to Input only */
+    pinMode(sdaPin, trasmissionPinModeINPUT);
+    pinMode(sckPin, INPUT);
 }
 
 int32_t rtl8367::smi_read(uint32_t mAddrs, uint32_t *rData)

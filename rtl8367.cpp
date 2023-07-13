@@ -25,6 +25,11 @@ void rtl8367::setTransmissionPins(uint8_t sckPin, uint8_t sdaPin)
     pinMode(sckPin, OUTPUT);
 }
 
+void rtl8367::enablePullUpResistorsOnPins()
+{
+    trasmissionPinModeINPUT = INPUT_PULLUP;
+}
+
 void rtl8367::setTransmissionDelay(uint16_t usTransmissionDelay)
 {
     this->usTransmissionDelay = usTransmissionDelay;
