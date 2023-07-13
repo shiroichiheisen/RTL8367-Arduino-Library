@@ -118,8 +118,8 @@ This library is based on Realtek API 1.3.12, I don't have converted all of the f
 - [x] rtk_filter_iprange_set
 - [x] rtk_filter_vidrange_set
 - [x] rtk_filter_portrange_set
-- [x] rtk_eee_init
-- [x] rtk_eee_portEnable_set
+- [x] rtk_eee_init - tested
+- [x] rtk_eee_portEnable_set - tested
 - [x] rtk_dot1x_eapolFrame2CpuEnable_set
 - [x] rtk_dot1x_portBasedEnable_set
 - [x] rtk_dot1x_portBasedAuthStatus_set
