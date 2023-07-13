@@ -6,9 +6,14 @@ rtl8367::rtl8367(uint16_t usTransmissionDelay)
     this->usTransmissionDelay = usTransmissionDelay;
 }
 
-void rtl8367::reset()
+int32_t rtl8367::reset()
 {
-    rtl8367c_setAsicReg(RTL8367C_REG_CHIP_RESET, 1);
+    int32_t retVal;
+    retVal = rtl8367c_setAsicReg(RTL8367C_REG_CHIP_RESET, 1);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    return RT_ERR_OK;
 }
 
 void rtl8367::setTransmissionPins(uint8_t sckPin, uint8_t sdaPin)
