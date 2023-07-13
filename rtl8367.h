@@ -12,7 +12,6 @@ public:
     rtl8367(uint16_t);
     int32_t reset();
     void setTransmissionPins(uint8_t, uint8_t);
-    void enablePullUpResistorsOnPins();
     void setTransmissionDelay(uint16_t);
     int32_t rtk_switch_probe(uint8_t &);
     int32_t rtk_port_phyStatus_get(uint8_t, uint8_t &, uint8_t &, uint8_t &);
@@ -138,8 +137,7 @@ private:
 
     uint8_t
         sdaPin = 0,
-        sckPin = 0,
-        trasmissionPinModeINPUT = INPUT;
+        sckPin = 0;
 
     rtk_svlan_lookupType_t svlan_lookupType;
     uint8_t svlan_mbrCfgUsage[RTL8367C_SVIDXNO];
