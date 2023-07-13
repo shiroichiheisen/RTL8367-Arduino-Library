@@ -10,6 +10,7 @@ class rtl8367
 {
 public:
     rtl8367(uint16_t);
+    void reset();
     void setTransmissionPins(uint8_t, uint8_t);
     void setTransmissionDelay(uint16_t);
     int32_t rtk_switch_probe(uint8_t &);

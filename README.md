@@ -22,6 +22,7 @@ This library is based on Realtek API 1.3.12, I don't have converted all of the f
 
 # Functions Added:
 
+- [x] reset - tested
 - [x] rtk_switch_probe - tested
 - [x] rtk_port_phyStatus_get - tested
 - [x] rtk_vlan_init - tested
@@ -84,7 +85,7 @@ This library is based on Realtek API 1.3.12, I don't have converted all of the f
 - [x] rtk_port_phyAutoNegoAbility_get
 - [x] rtk_led_enable_set
 - [x] rtk_led_operation_set
-- [x] rtk_led_blinkRate_set
+- [x] rtk_led_blinkRate_set - tested
 - [x] rtk_led_groupConfig_set
 - [x] rtk_trap_rmaAction_set
 - [x] rtk_trap_rmaAction_get
