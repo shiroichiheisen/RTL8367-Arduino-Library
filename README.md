@@ -2,6 +2,8 @@
 
 To use this library, you will need to connect the sda and sck pins to the Arduino, !important! you must maintain the rtl8367 eeprom for him to start, and after that, you can use the library to configure the switch. !important! the rtl8367 series is 3.3v! so you will need to use a logic-level converter to use it with the Arduino if you are using a 5v Arduino.
 
+You can't use the library if the eeprom is not present, on my board with the rtl8367s I need the eeprom to start the switch, I don't know if it's the same for the other switches, but I think it's the same for all of them. After some searching, I found that some switches with the rtl8367 are programmed internally to boot without the eeprom, but I don't know how to do that, so I will use the eeprom for now.
+
 This library doesn't use the Arduino wire library, it's using its own software i2c, so you can use almost any pin for sda and sck, the pins just need to have digital input and output capabilities.
 
 # Important:
