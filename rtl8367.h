@@ -133,7 +133,7 @@ private:
     uint32_t vlan_mbrCfgVid[RTL8367C_CVIDXNO];
     vlan_mbrCfgType_t vlan_mbrCfgUsage[RTL8367C_CVIDXNO];
     uint16_t
-        usTransmissionDelay;
+        usTransmissionDelay = 1;
 
     uint8_t
         sdaPin = 0,
