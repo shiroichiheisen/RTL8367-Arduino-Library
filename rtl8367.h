@@ -11,8 +11,8 @@ class rtl8367
 public:
     rtl8367(uint16_t);
     int32_t reset();
-    void setTransmissionPins(uint8_t, uint8_t);
-    void setTransmissionDelay(uint16_t);
+    void setCommunicationPins(uint8_t, uint8_t);
+    void setCommunicationDelay(uint16_t);
     int32_t rtk_switch_probe(uint8_t &);
     int32_t rtk_port_phyStatus_get(uint8_t, uint8_t &, uint8_t &, uint8_t &);
     int32_t rtk_vlan_init();

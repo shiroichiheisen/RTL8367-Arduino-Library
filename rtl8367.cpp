@@ -16,7 +16,7 @@ int32_t rtl8367::reset()
     return RT_ERR_OK;
 }
 
-void rtl8367::setTransmissionPins(uint8_t sckPin, uint8_t sdaPin)
+void rtl8367::setCommunicationPins(uint8_t sckPin, uint8_t sdaPin)
 {
     this->sdaPin = sdaPin;
     this->sckPin = sckPin;
@@ -25,7 +25,7 @@ void rtl8367::setTransmissionPins(uint8_t sckPin, uint8_t sdaPin)
     pinMode(sckPin, OUTPUT);
 }
 
-void rtl8367::setTransmissionDelay(uint16_t usTransmissionDelay)
+void rtl8367::setCommunicationDelay(uint16_t usTransmissionDelay)
 {
     this->usTransmissionDelay = usTransmissionDelay;
 }
