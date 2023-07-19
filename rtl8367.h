@@ -14,6 +14,8 @@ public:
     int32_t resetWithDelay();
     void setCommunicationPins(uint8_t, uint8_t);
     void setCommunicationDelay(uint16_t);
+    int32_t clearVlan(uint16_t);
+
     int32_t rtk_switch_probe(uint8_t &);
     int32_t rtk_port_phyStatus_get(uint8_t, uint8_t &, uint8_t &, uint8_t &);
     int32_t rtk_vlan_init();

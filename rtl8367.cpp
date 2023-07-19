@@ -15559,3 +15559,12 @@ int32_t rtl8367::rtk_igmp_currentGroup_get(rtk_port_t port, uint32_t *pGroup)
 
     return RT_ERR_OK;
 }
+
+int32_t rtl8367::clearVlan(uint16_t vlanId)
+{
+    rtk_vlan_cfg_t vlan1;
+    memset(&vlan1, 0x00, sizeof(rtk_vlan_cfg_t));
+    RTK_PORTMASK_CLEAR(vlan1.mbr);
+    RTK_PORTMASK_CLEAR(vlan1.untag);
+    return rtk_vlan_set(vlanId, &vlan1);
+}
