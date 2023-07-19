@@ -16,6 +16,18 @@ int32_t rtl8367::reset()
     return RT_ERR_OK;
 }
 
+int32_t rtl8367::resetWithDelay()
+{
+    int32_t retVal;
+    retVal = rtl8367c_setAsicReg(RTL8367C_REG_CHIP_RESET, 1);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+        delay(2000);
+
+    return RT_ERR_OK;
+}
+
 void rtl8367::setCommunicationPins(uint8_t sckPin, uint8_t sdaPin)
 {
     this->sdaPin = sdaPin;
