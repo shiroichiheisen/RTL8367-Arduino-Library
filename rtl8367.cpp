@@ -23,7 +23,7 @@ int32_t rtl8367::resetWithDelay()
     if (retVal != RT_ERR_OK)
         return retVal;
 
-        delay(2000);
+    delay(2000);
 
     return RT_ERR_OK;
 }
