@@ -393,7 +393,8 @@ typedef enum rtk_enable_e
 {
     DISABLED_RTK = 0,
     ENABLED,
-    RTK_ENABLE_END
+    RTK_ENABLE_END，
+    DISABLED = 0
 } rtk_enable_t;
 
 typedef enum rtk_port_e
