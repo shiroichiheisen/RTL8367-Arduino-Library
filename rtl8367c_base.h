@@ -1,7 +1,7 @@
 #ifndef _RTL8367C_BASE_H_
 #define _RTL8367C_BASE_H_
 
-#include <rtl8367c_reg.h>
+#include "rtl8367c_reg.h"
 
 /* (16'h0000) port_reg */
 
