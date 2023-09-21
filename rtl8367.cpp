@@ -15568,3 +15568,187 @@ int32_t rtl8367::clearVlan(uint16_t vlanId)
     RTK_PORTMASK_CLEAR(vlan1.untag);
     return rtk_vlan_set(vlanId, &vlan1);
 }
+
+/* Function Name:
+ *      rtl8367c_setAsicPortIngressBandwidth
+ * Description:
+ *      Set per-port total ingress bandwidth
+ * Input:
+ *      port        - Physical port number (0~7)
+ *      bandwidth   - The total ingress bandwidth (unit: 8Kbps), 0x1FFFF:disable
+ *      preifg      - Include preamble and IFG, 0:Exclude, 1:Include
+ *      enableFC    - Action when input rate exceeds. 0: Drop   1: Flow Control
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK           - Success
+ *      RT_ERR_SMI          - SMI access error
+ *      RT_ERR_PORT_ID      - Invalid port number
+ *      RT_ERR_OUT_OF_RANGE - input parameter out of range
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsicPortIngressBandwidth(uint32_t port, uint32_t bandwidth, uint32_t preifg, uint32_t enableFC)
+{
+    int32_t retVal;
+    uint32_t regData;
+    uint32_t regAddr;
+
+    /* Invalid input parameter */
+    if (port >= RTL8367C_PORTNO)
+        return RT_ERR_PORT_ID;
+
+    if (bandwidth > RTL8367C_QOS_GRANULARTY_MAX)
+        return RT_ERR_OUT_OF_RANGE;
+
+    regAddr = RTL8367C_INGRESSBW_PORT_RATE_LSB_REG(port);
+    regData = bandwidth & RTL8367C_QOS_GRANULARTY_LSB_MASK;
+    retVal = rtl8367c_setAsicReg(regAddr, regData);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    regAddr += 1;
+    regData = (bandwidth & RTL8367C_QOS_GRANULARTY_MSB_MASK) >> RTL8367C_QOS_GRANULARTY_MSB_OFFSET;
+    retVal = rtl8367c_setAsicRegBits(regAddr, RTL8367C_INGRESSBW_PORT0_RATE_CTRL1_INGRESSBW_RATE16_MASK, regData);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    regAddr = RTL8367C_PORT_MISC_CFG_REG(port);
+    retVal = rtl8367c_setAsicRegBit(regAddr, RTL8367C_PORT0_MISC_CFG_INGRESSBW_IFG_OFFSET, preifg);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    regAddr = RTL8367C_PORT_MISC_CFG_REG(port);
+    retVal = rtl8367c_setAsicRegBit(regAddr, RTL8367C_PORT0_MISC_CFG_INGRESSBW_FLOWCTRL_OFFSET, enableFC);
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    return RT_ERR_OK;
+}
+
+int32_t rtl8367::rtk_rate_igrBandwidthCtrlRate_set(rtk_port_t port, uint32_t rate, rtk_enable_t ifg_include, rtk_enable_t fc_enable)
+{
+    int32_t retVal;
+
+    /* Check Port Valid */
+    RTK_CHK_PORT_VALID(port);
+
+    if (ifg_include >= RTK_ENABLE_END)
+        return RT_ERR_INPUT;
+
+    if (fc_enable >= RTK_ENABLE_END)
+        return RT_ERR_INPUT;
+
+    if (rtk_switch_isHsgPort(port) == RT_ERR_OK)
+    {
+        if ((rate > RTL8367C_QOS_RATE_INPUT_MAX_HSG) || (rate < RTL8367C_QOS_RATE_INPUT_MIN))
+            return RT_ERR_QOS_EBW_RATE;
+    }
+    else
+    {
+        if ((rate > RTL8367C_QOS_RATE_INPUT_MAX) || (rate < RTL8367C_QOS_RATE_INPUT_MIN))
+            return RT_ERR_QOS_EBW_RATE;
+    }
+
+    if ((retVal = rtl8367c_setAsicPortIngressBandwidth(rtk_switch_port_L2P_get(port), rate >> 3, ifg_include, fc_enable)) != RT_ERR_OK)
+        return retVal;
+
+    return RT_ERR_OK;
+}
+
+/* Function Name:
+ *      rtl8367c_setAsicPortEgressRate
+ * Description:
+ *      Set per-port egress rate
+ * Input:
+ *      port        - Physical port number (0~10)
+ *      rate        - Egress rate
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK           - Success
+ *      RT_ERR_SMI          - SMI access error
+ *      RT_ERR_PORT_ID      - Invalid port number
+ *      RT_ERR_QOS_EBW_RATE - Invalid bandwidth/rate
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsicPortEgressRate(uint32_t port, uint32_t rate)
+{
+    int32_t retVal;
+    uint32_t regAddr, regData;
+
+    if (port > RTL8367C_PORTIDMAX)
+        return RT_ERR_PORT_ID;
+
+    if (rate > RTL8367C_QOS_GRANULARTY_MAX)
+        return RT_ERR_QOS_EBW_RATE;
+
+    regAddr = RTL8367C_PORT_EGRESSBW_LSB_REG(port);
+    regData = RTL8367C_QOS_GRANULARTY_LSB_MASK & rate;
+
+    retVal = rtl8367c_setAsicReg(regAddr, regData);
+
+    if (retVal != RT_ERR_OK)
+        return retVal;
+
+    regAddr = RTL8367C_PORT_EGRESSBW_MSB_REG(port);
+    regData = (RTL8367C_QOS_GRANULARTY_MSB_MASK & rate) >> RTL8367C_QOS_GRANULARTY_MSB_OFFSET;
+
+    retVal = rtl8367c_setAsicRegBits(regAddr, RTL8367C_PORT6_EGRESSBW_CTRL1_MASK, regData);
+
+    return retVal;
+}
+
+/* Function Name:
+ *      rtl8367c_setAsicPortEgressRateIfg
+ * Description:
+ *      Set per-port egress rate calculate include/exclude IFG
+ * Input:
+ *      ifg     - 1:include IFG 0:exclude IFG
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK   - Success
+ *      RT_ERR_SMI  - SMI access error
+ * Note:
+ *      None
+ */
+int32_t rtl8367::rtl8367c_setAsicPortEgressRateIfg(uint32_t ifg)
+{
+    int32_t retVal;
+
+    retVal = rtl8367c_setAsicRegBit(RTL8367C_REG_SCHEDULE_WFQ_CTRL, RTL8367C_SCHEDULE_WFQ_CTRL_OFFSET, ifg);
+
+    return retVal;
+}
+
+int32_t rtl8367::rtk_rate_egrBandwidthCtrlRate_set(rtk_port_t port, uint32_t rate, rtk_enable_t ifg_include)
+{
+    int32_t retVal;
+
+    /* Check Port Valid */
+    RTK_CHK_PORT_VALID(port);
+
+    if (rtk_switch_isHsgPort(port) == RT_ERR_OK)
+    {
+        if ((rate > RTL8367C_QOS_RATE_INPUT_MAX_HSG) || (rate < RTL8367C_QOS_RATE_INPUT_MIN))
+            return RT_ERR_QOS_EBW_RATE;
+    }
+    else
+    {
+        if ((rate > RTL8367C_QOS_RATE_INPUT_MAX) || (rate < RTL8367C_QOS_RATE_INPUT_MIN))
+            return RT_ERR_QOS_EBW_RATE;
+    }
+
+    if (ifg_include >= RTK_ENABLE_END)
+        return RT_ERR_ENABLE;
+
+    if ((retVal = rtl8367c_setAsicPortEgressRate(rtk_switch_port_L2P_get(port), rate >> 3)) != RT_ERR_OK)
+        return retVal;
+
+    if ((retVal = rtl8367c_setAsicPortEgressRateIfg(ifg_include)) != RT_ERR_OK)
+        return retVal;
+
+    return RT_ERR_OK;
+}

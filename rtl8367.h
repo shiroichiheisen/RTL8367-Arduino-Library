@@ -131,6 +131,8 @@ public:
     int32_t rtk_igmp_maxGroup_set(rtk_port_t port, uint32_t group);
     int32_t rtk_igmp_maxGroup_get(rtk_port_t port, uint32_t *pGroup);
     int32_t rtk_igmp_currentGroup_get(rtk_port_t port, uint32_t *pGroup);
+    int32_t rtk_rate_igrBandwidthCtrlRate_set(rtk_port_t port, uint32_t rate, rtk_enable_t ifg_include, rtk_enable_t fc_enable);
+    int32_t rtk_rate_egrBandwidthCtrlRate_set(rtk_port_t port, uint32_t rate, rtk_enable_t ifg_include);
 
 private:
     uint32_t vlan_mbrCfgVid[RTL8367C_CVIDXNO];
@@ -474,6 +476,9 @@ private:
     int32_t rtl8367c_setAsicIGMPPortMAXGroup(uint32_t port, uint32_t max_group);
     int32_t rtl8367c_getAsicIGMPPortMAXGroup(uint32_t port, uint32_t *max_group);
     int32_t rtl8367c_getAsicIGMPPortCurrentGroup(uint32_t port, uint32_t *current_group);
+    int32_t rtl8367c_setAsicPortIngressBandwidth(uint32_t port, uint32_t bandwidth, uint32_t preifg, uint32_t enableFC);
+    int32_t rtl8367c_setAsicPortEgressRate(uint32_t port, uint32_t rate);
+    int32_t rtl8367c_setAsicPortEgressRateIfg(uint32_t ifg);
 
     const uint8_t filter_templateField[RTL8367C_ACLTEMPLATENO][RTL8367C_ACLRULEFIELDNO] = {
         {ACL_DMAC0, ACL_DMAC1, ACL_DMAC2, ACL_SMAC0, ACL_SMAC1, ACL_SMAC2, ACL_ETHERTYPE, ACL_FIELD_SELECT15},
