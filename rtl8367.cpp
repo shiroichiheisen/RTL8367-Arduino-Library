@@ -15626,6 +15626,28 @@ int32_t rtl8367::rtl8367c_setAsicPortIngressBandwidth(uint32_t port, uint32_t ba
     return RT_ERR_OK;
 }
 
+/* Function Name:
+ *      rtk_rate_igrBandwidthCtrlRate_set
+ * Description:
+ *      Set port ingress bandwidth control
+ * Input:
+ *      port        - Port id
+ *      rate        - Rate of share meter
+ *      ifg_include - include IFG or not, ENABLE:include DISABLE:exclude
+ *      fc_enable   - enable flow control or not, ENABLE:use flow control DISABLE:drop
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK           - OK
+ *      RT_ERR_FAILED       - Failed
+ *      RT_ERR_SMI          - SMI access error
+ *      RT_ERR_PORT_ID      - Invalid port number.
+ *      RT_ERR_ENABLE       - Invalid IFG parameter.
+ *      RT_ERR_INBW_RATE    - Invalid ingress rate parameter.
+ * Note:
+ *      The rate unit is 1 kbps and the range is from 8k to 1048568k. The granularity of rate is 8 kbps.
+ *      The ifg_include parameter is used for rate calculation with/without inter-frame-gap and preamble.
+ */
 int32_t rtl8367::rtk_rate_igrBandwidthCtrlRate_set(rtk_port_t port, uint32_t rate, rtk_enable_t ifg_include, rtk_enable_t fc_enable)
 {
     int32_t retVal;
@@ -15723,6 +15745,27 @@ int32_t rtl8367::rtl8367c_setAsicPortEgressRateIfg(uint32_t ifg)
     return retVal;
 }
 
+/* Function Name:
+ *      rtk_rate_egrBandwidthCtrlRate_set
+ * Description:
+ *      Set port egress bandwidth control
+ * Input:
+ *      port        - Port id
+ *      rate        - Rate of egress bandwidth
+ *      ifg_include - include IFG or not, ENABLE:include DISABLE:exclude
+ * Output:
+ *      None
+ * Return:
+ *      RT_ERR_OK           - OK
+ *      RT_ERR_FAILED       - Failed
+ *      RT_ERR_SMI          - SMI access error
+ *      RT_ERR_PORT_ID      - Invalid port number.
+ *      RT_ERR_INPUT        - Invalid input parameters.
+ *      RT_ERR_QOS_EBW_RATE - Invalid egress bandwidth/rate
+ * Note:
+ *     The rate unit is 1 kbps and the range is from 8k to 1048568k. The granularity of rate is 8 kbps.
+ *     The ifg_include parameter is used for rate calculation with/without inter-frame-gap and preamble.
+ */
 int32_t rtl8367::rtk_rate_egrBandwidthCtrlRate_set(rtk_port_t port, uint32_t rate, rtk_enable_t ifg_include)
 {
     int32_t retVal;
