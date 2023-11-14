@@ -15795,3 +15795,182 @@ int32_t rtl8367::rtk_rate_egrBandwidthCtrlRate_set(rtk_port_t port, uint32_t rat
 
     return RT_ERR_OK;
 }
+
+int32_t rtl8367::rtk_switch_isSgmiiPort(rtk_port_t logicalPort)
+{
+    if (logicalPort >= RTK_SWITCH_PORT_NUM)
+        return RT_ERR_FAILED;
+
+    if (((0x01 << logicalPort) & halCtrl.sg_logical_portmask) != 0)
+        return RT_ERR_OK;
+    else
+        return RT_ERR_FAILED;
+}
+
+/* Function Name:
+ *      rtl8367c_getSdsLinkStatus
+ * Description:
+ *      Get SGMII status
+ * Input:
+ *      id  - EXT ID
+ * Output:
+ *      None.
+ * Return:
+ *      RT_ERR_OK                   - Success
+ *      RT_ERR_SMI                  - SMI access error
+ * Note:
+ *      None.
+ */
+int32_t rtl8367::rtl8367c_getSdsLinkStatus(uint32_t ext_id, uint8_t *pSignalDetect, uint8_t *pSync, uint8_t *pLink)
+{
+    uint32_t retVal, regValue, type, running = 0, retVal2;
+
+    if ((retVal = rtl8367c_setAsicReg(0x13C2, 0x0249)) != RT_ERR_OK)
+        return retVal;
+
+    if ((retVal = rtl8367c_getAsicReg(0x1300, &regValue)) != RT_ERR_OK)
+        return retVal;
+
+    if ((retVal = rtl8367c_setAsicReg(0x13C2, 0x0000)) != RT_ERR_OK)
+        return retVal;
+
+    switch (regValue)
+    {
+    case 0x0276:
+    case 0x0597:
+    case 0x6367:
+        type = 0;
+        break;
+    case 0x0652:
+    case 0x6368:
+        type = 1;
+        break;
+    case 0x0801:
+    case 0x6511:
+        type = 2;
+        break;
+    default:
+        return RT_ERR_FAILED;
+    }
+
+    if (type == 0)
+    {
+        if (1 == ext_id)
+        {
+            if ((retVal = rtl8367c_getAsicRegBit(0x130c, 5, &running)) != RT_ERR_OK)
+                return retVal;
+
+            if (running == 1)
+            {
+                if ((retVal = rtl8367c_setAsicRegBit(0x130c, 5, 0)) != RT_ERR_OK)
+                    return retVal;
+            }
+
+            retVal = rtl8367c_setAsicReg(0x6601, 0x003D);
+
+            if (retVal == RT_ERR_OK)
+                retVal = rtl8367c_setAsicReg(0x6600, 0x0080);
+
+            if (retVal == RT_ERR_OK)
+                retVal = rtl8367c_getAsicReg(0x6602, &regValue);
+
+            if (running == 1)
+            {
+                if ((retVal2 = rtl8367c_setAsicRegBit(0x130c, 5, 1)) != RT_ERR_OK)
+                    return retVal2;
+            }
+
+            if (retVal != RT_ERR_OK)
+                return retVal;
+
+            *pSignalDetect = (regValue & 0x0100) ? 1 : 0;
+            *pSync = (regValue & 0x0001) ? 1 : 0;
+            *pLink = (regValue & 0x0010) ? 1 : 0;
+        }
+        else
+            return RT_ERR_PORT_ID;
+    }
+    else if (type == 1)
+    {
+        if (1 == ext_id)
+        {
+            if ((retVal = rtl8367c_setAsicReg(0x6601, 0x003D)) != RT_ERR_OK)
+                return retVal;
+            if ((retVal = rtl8367c_setAsicReg(0x6600, 0x0081)) != RT_ERR_OK)
+                return retVal;
+            if ((retVal = rtl8367c_getAsicReg(0x6602, &regValue)) != RT_ERR_OK)
+                return retVal;
+
+            *pSignalDetect = (regValue & 0x0100) ? 1 : 0;
+            *pSync = (regValue & 0x0001) ? 1 : 0;
+            *pLink = (regValue & 0x0010) ? 1 : 0;
+        }
+        else if (2 == ext_id)
+        {
+            if ((retVal = rtl8367c_setAsicReg(0x6601, 0x003D)) != RT_ERR_OK)
+                return retVal;
+            if ((retVal = rtl8367c_setAsicReg(0x6600, 0x0080)) != RT_ERR_OK)
+                return retVal;
+            if ((retVal = rtl8367c_getAsicReg(0x6602, &regValue)) != RT_ERR_OK)
+                return retVal;
+
+            *pSignalDetect = (regValue & 0x0100) ? 1 : 0;
+            *pSync = (regValue & 0x0001) ? 1 : 0;
+            *pLink = (regValue & 0x0010) ? 1 : 0;
+        }
+        else
+            return RT_ERR_PORT_ID;
+    }
+    else if (type == 2)
+    {
+        if ((retVal = rtl8367c_getAsicSdsReg(0, 30, 1, &regValue)) != RT_ERR_OK)
+            return retVal;
+        if ((retVal = rtl8367c_getAsicSdsReg(0, 30, 1, &regValue)) != RT_ERR_OK)
+            return retVal;
+
+        *pSignalDetect = (regValue & 0x0100) ? 1 : 0;
+        *pSync = (regValue & 0x0001) ? 1 : 0;
+        *pLink = (regValue & 0x0010) ? 1 : 0;
+    }
+
+    return RT_ERR_OK;
+}
+
+/* Function Name:
+ *      rtk_port_sgmiiLinkStatus_get
+ * Description:
+ *      Get SGMII status
+ * Input:
+ *      port        - Port ID
+ * Output:
+ *      pSignalDetect   - Signal detect
+ *      pSync           - Sync
+ *      pLink           - Link - rtk_port_linkStatus_t - Down 0 - Up 1
+ * Return:
+ *      RT_ERR_OK                   - OK
+ *      RT_ERR_FAILED               - Failed
+ *      RT_ERR_SMI                  - SMI access error
+ *      RT_ERR_PORT_ID              - Invalid port ID.
+ * Note:
+ *      The API can reset Serdes
+ */
+int32_t rtl8367::rtk_port_sgmiiLinkStatus_get(rtk_port_t port, uint8_t *pSignalDetect, uint8_t *pSync, uint8_t *pLink)
+{
+    uint32_t ext_id;
+
+    /* Check Port Valid */
+    if (rtk_switch_isSgmiiPort(port) != RT_ERR_OK)
+        return RT_ERR_PORT_ID;
+
+    if (NULL == pSignalDetect)
+        return RT_ERR_NULL_POINTER;
+
+    if (NULL == pSync)
+        return RT_ERR_NULL_POINTER;
+
+    if (NULL == pLink)
+        return RT_ERR_NULL_POINTER;
+
+    ext_id = port - 15;
+    return rtl8367c_getSdsLinkStatus(ext_id, pSignalDetect, pSync, pLink);
+}

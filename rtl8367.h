@@ -133,6 +133,7 @@ public:
     int32_t rtk_igmp_currentGroup_get(rtk_port_t port, uint32_t *pGroup);
     int32_t rtk_rate_igrBandwidthCtrlRate_set(rtk_port_t port, uint32_t rate, rtk_enable_t ifg_include, rtk_enable_t fc_enable);
     int32_t rtk_rate_egrBandwidthCtrlRate_set(rtk_port_t port, uint32_t rate, rtk_enable_t ifg_include);
+    int32_t rtk_port_sgmiiLinkStatus_get(rtk_port_t port, uint8_t *pSignalDetect, uint8_t *pSync, uint8_t *pLink);
 
 private:
     uint32_t vlan_mbrCfgVid[RTL8367C_CVIDXNO];
@@ -479,6 +480,8 @@ private:
     int32_t rtl8367c_setAsicPortIngressBandwidth(uint32_t port, uint32_t bandwidth, uint32_t preifg, uint32_t enableFC);
     int32_t rtl8367c_setAsicPortEgressRate(uint32_t port, uint32_t rate);
     int32_t rtl8367c_setAsicPortEgressRateIfg(uint32_t ifg);
+    int32_t rtk_switch_isSgmiiPort(rtk_port_t logicalPort);
+    int32_t rtl8367c_getSdsLinkStatus(uint32_t ext_id, uint8_t *pSignalDetect, uint8_t *pSync, uint8_t *pLink);
 
     const uint8_t filter_templateField[RTL8367C_ACLTEMPLATENO][RTL8367C_ACLRULEFIELDNO] = {
         {ACL_DMAC0, ACL_DMAC1, ACL_DMAC2, ACL_SMAC0, ACL_SMAC1, ACL_SMAC2, ACL_ETHERTYPE, ACL_FIELD_SELECT15},
